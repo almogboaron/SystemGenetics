@@ -30,7 +30,7 @@ def filter_neighboring_rows(data_frame, columns_to_check):
     return filtered_df
 
 
-PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\ex3\plots"
+PLOT_FOLDER = r"C:\Users\Almog\Programming Projects\SystemGenetics\ex3\plots"
 
 
 def save_plot(df: pd.DataFrame, gene_name):
@@ -49,7 +49,8 @@ def save_plot(df: pd.DataFrame, gene_name):
     plt.title('Manhattan Plot')
     plt.xticks(range(len(df)), df[snp_c_name], rotation=90)  # Show SNP names on x-axis
 
-    plt.savefig(f"{os.path.join(PLOT_FOLDER, gene_name + '.png')}", bbox_inches='tight')  # 'bbox_inches' helps prevent cropping of labels
+    plt.savefig(f"{os.path.join(PLOT_FOLDER, gene_name + '.png')}",
+                bbox_inches='tight')  # 'bbox_inches' helps prevent cropping of labels
     plt.close()  # Close the plot to free up memory
 
 
@@ -105,7 +106,7 @@ def association_test():
             df = prep_data(snp_to_gn[snp], expression_data)
             prep_genotype_data(df, genotypes_to_consider)
             res = regression_model(df["genotype"], df["phenotype"])
-            snp_to_res[snp] = res   # res is -log(p-value)
+            snp_to_res[snp] = res  # res is -log(p-value)
 
         eqtl_res[eQTL] = snp_to_res
         res_df = pd.DataFrame({"snp": eqtl_res[eQTL].keys(), "-log(p-value)": eqtl_res[eQTL].values()})
@@ -138,6 +139,37 @@ def understand_task():
         print(loci_row)
 
 
+def filter_weak_associated_genes(dict_eQTL: dict, p_ValueThrashold: int) -> dict:
+    res = {}
+    for gene in dict_eQTL.keys():
+        df_gene = pd.DataFrame(dict_eQTL[gene], columns=['SNP', 'P_value'])
+        df_filtered = df_gene[df_gene['P_value'] > p_ValueThrashold]
+        if len(df_filtered)>0:
+            res[gene] = df_filtered
+    return res
+
+
+def Add_to_df_CisOrTrans(df_gene:pd.DataFrame)-> None:
+    MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
+    genotype_df = pd.read_excel("genotypes.xls", header=1)
+
+    # Merge df1 with df2 to get SNP location
+    merged_df = pd.merge(df1, df2, on='SNP')
+
+    # Merge the result with df3 to get gene start and end
+    merged_df = pd.merge(merged_df, df3, left_on='Gene_Name', right_on='Gene_Name')
+
+    # Calculate the range for each gene
+    merged_df['Range_Start'] = merged_df['Start'] - 200000
+    merged_df['Range_End'] = merged_df['End'] + 200000
+
+    # Check if SNP location is within the gene range and label as "Cis" or "Trans"
+    merged_df['In_Range'] = merged_df.apply(
+        lambda row: 'Cis' if row['Location'] >= row['Range_Start'] and row['Location'] <= row['Range_End'] else 'Trans',
+        axis=1)
+
+    print(merged_df)
+
+
+
 if __name__ == '__main__':
-    # understand_task()
-    association_test()
