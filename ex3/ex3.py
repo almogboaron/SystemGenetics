@@ -154,7 +154,7 @@ def Add_to_df_CisOrTrans(df_gene:pd.DataFrame)-> None:
     genotype_df = pd.read_excel("genotypes.xls", header=1)
 
     # Merge df1 with df2 to get SNP location
-    merged_df = pd.merge(df1, df2, on='SNP')
+    merged_df = pd.merge(df_gene, genotype_df, on='SNP')
 
     # Merge the result with df3 to get gene start and end
     merged_df = pd.merge(merged_df, df3, left_on='Gene_Name', right_on='Gene_Name')
