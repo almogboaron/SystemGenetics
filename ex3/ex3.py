@@ -118,57 +118,52 @@ def association_test():
     print("finish")
 
 
-def understand_task():
-    gen_df = pd.read_excel("genotypes.xls", header=1)
-    lps_df = pd.read_csv("dendritic_LPS_stimulation.txt", sep="\t")
-
-    gen_df.sort_values(by='Build37_position', inplace=True)
-
-    # Find neighboring loci with consecutive "Build37_position" values
-    neighboring_loci = []
-    current_position = None
-
-    for index, row in gen_df.iterrows():
-        current_pos = row['Build37_position']
-        if index < len(gen_df) - 1:
-            if gen_df.loc[index + 1]["Build37_position"] == current_pos + 1:
-                neighboring_loci.append(row)
-
-    # Print the adjacent rows representing neighboring loci
-    for loci_row in neighboring_loci:
-        print(loci_row)
-
-
-def filter_weak_associated_genes(dict_eQTL: dict, p_ValueThrashold: int) -> dict:
+def filter_weak_associated_genes(dict_eQTL: dict, p_ValueThrashold: float) -> dict:
     res = {}
     for gene in dict_eQTL.keys():
-        df_gene = pd.DataFrame(dict_eQTL[gene], columns=['SNP', 'P_value'])
+        df_gene = pd.DataFrame(dict_eQTL[gene], columns=['Locus', 'P_value'])
         df_filtered = df_gene[df_gene['P_value'] > p_ValueThrashold]
         if len(df_filtered)>0:
             res[gene] = df_filtered
     return res
 
 
-def Add_to_df_CisOrTrans(df_gene:pd.DataFrame)-> None:
+def Add_to_df_CisOrTrans(df_gene:pd.DataFrame , gene_start: int , gene_end: int ,genotypes_df:pd.DataFrame)-> pd.DataFrame:
+
+    # Merge df1 with df2 to get SNP location
+    merged_df = pd.merge(df_gene, genotypes_df, on='Locus',how = "inner " )
+
+
+    # Calculate the range for each gene + 2Mbp
+    gene_start = gene_start - 200000
+    gene_end = gene_end + 200000
+
+    # Check if SNP location is within the gene range and label as "Cis" or "Trans"
+    merged_df['Cis\Trans'] = merged_df.apply(
+        lambda row: 'Cis' if row['Build37_position'] >= gene_start and row['Location'] <= gene_end else 'Trans', axis=1)
+
+    return merged_df[["Locus","P_value",'Cis\Trans']]
+
+def get_gene_boundries(df:pd.DataFrame,gene:str)->(int,int):
+    return df[df['marker symbol']==gene][['representative genome start','representative genome end']]
+
+P_VALUE_THREASHOLD = 4.667
+def Analys_eQTL_dict():
+    #Open Csv For Boundries
     MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
     genotype_df = pd.read_excel("genotypes.xls", header=1)
 
-    # Merge df1 with df2 to get SNP location
-    merged_df = pd.merge(df_gene, genotype_df, on='SNP')
+    #Open Pickel File
+    with open('eqtl_res_dict.pickle', 'rb') as f:
+        pickel_Rick = pickle.load(f)
 
-    # Merge the result with df3 to get gene start and end
-    merged_df = pd.merge(merged_df, df3, left_on='Gene_Name', right_on='Gene_Name')
+    #Filter SNPs from each gene:
+    pickel_Rick_Filttered = filter_weak_associated_genes(pickel_Rick,P_VALUE_THREASHOLD)
 
-    # Calculate the range for each gene
-    merged_df['Range_Start'] = merged_df['Start'] - 200000
-    merged_df['Range_End'] = merged_df['End'] + 200000
+    for gene in pickel_Rick_Filttered.keys():
+        start,end = get_gene_boundries(MGI_Coordinates_df,gene)
+        pickel_Rick_Filttered[gene] = Add_to_df_CisOrTrans(pickel_Rick_Filttered[gene],start,end,genotype_df)
 
-    # Check if SNP location is within the gene range and label as "Cis" or "Trans"
-    merged_df['In_Range'] = merged_df.apply(
-        lambda row: 'Cis' if row['Location'] >= row['Range_Start'] and row['Location'] <= row['Range_End'] else 'Trans',
-        axis=1)
-
-    print(merged_df)
 
 
 
