@@ -1,3 +1,4 @@
+from ex3.ex3 import association_test
 import GEOparse
 import pandas as pd
 import numpy as np
@@ -196,19 +197,29 @@ def process_data(csv_file: str) -> pd.DataFrame:
     result_df = sorted_df.drop_duplicates(subset='ID_REF', keep='first').reset_index(drop=True)
     result_df = result_df.drop(columns=['RowVar'])
 
-    # filter neighboring loci
-    res_df = filter_neighboring_rows(result_df, result_df.columns.delete([0]))
+    # filter neighboring loci happens for genotypes xls
+    # result_df = filter_neighboring_rows(result_df, result_df.columns.delete([0]))
 
-    return res_df
+    # change ID_REF column name to data
+    result_df = result_df.rename(columns={'ID_REF': 'data'})
+
+    return result_df
 
 
-def checks():
+def pre_process_raw_dfs():
     hypo_ready_df = process_data("hypo_processed_data.csv")
     hypo_ready_df.to_csv("hypo_ready.csv", index=False)
 
     liver_ready_df = process_data("liver_processed_data.csv")
     liver_ready_df.to_csv("liver_ready.csv", index=False)
 
+
+def eqtl_analysis():
+    liver_df = pd.read_csv("liver_ready.csv")
+    association_test(expression_df=liver_df, dropped_file_name="liver_eqtl_dict.pickle")
+
+    hypo_df = pd.read_csv("hypo_ready.csv")
+    association_test(expression_df=hypo_df, dropped_file_name="hypo_eqtl_dict.pickle")
 
 
 def correct_parsing():
@@ -264,5 +275,6 @@ if __name__ == '__main__':
     # parse_tables()
     # correct_parsing()
     # generate_working_dfs()
-    checks()
+    # pre_process_raw_dfs()
+    eqtl_analysis()
     pass

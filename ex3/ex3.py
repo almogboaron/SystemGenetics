@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-
 def add_together_same_bxd(df: pd.DataFrame) -> pd.DataFrame:
     # Calculate the averages for columns with the same name but different indices
     just_breeds = df.drop(columns=["data"])
@@ -33,7 +32,8 @@ def filter_neighboring_rows(data_frame, columns_to_check):
     return filtered_df
 
 
-PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\ex3\plots"   # Todo: change to generic absolute path
+# PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\ex3\plots"   # Todo: change to generic absolute path
+PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\git_stuff\SystemGenetics\final_project\plots"   # Todo: change to generic absolute path
 
 
 def save_plot(df: pd.DataFrame, gene_name):
@@ -56,7 +56,11 @@ def save_plot(df: pd.DataFrame, gene_name):
     plt.close()  # Close the plot to free up memory
 
 
-def association_test():
+def association_test(expression_df: pd.DataFrame = None, dropped_file_name: str = "eqtl_res_dict.pickle"):
+    """
+    performs assocaition test between genotypes and expression data
+    :return:
+    """
     # load genotypes
     gen_df = pd.read_excel("genotypes.xls", header=1)
 
@@ -65,9 +69,12 @@ def association_test():
     gen_df = filter_neighboring_rows(gen_df, columns)
 
     # load expresion data
-    lps_df = pd.read_csv("dendritic_LPS_stimulation.txt", sep="\t")
-    exp_data = add_together_same_bxd(lps_df)
-    exp_data.drop(columns=["B6", "D2"], inplace=True)
+    if expression_df is None:
+        lps_df = pd.read_csv("dendritic_LPS_stimulation.txt", sep="\t")
+        exp_data = add_together_same_bxd(lps_df)
+    else:
+        exp_data = expression_df
+    # exp_data.drop(columns=["B6", "D2"], inplace=True)
     relevant_breeds_names = set(exp_data.drop(columns=["data"]).columns)
 
     # generate dict of snp to breeds and allels
@@ -114,7 +121,7 @@ def association_test():
         res_df = pd.DataFrame({"snp": eqtl_res[eQTL].keys(), "-log(p-value)": eqtl_res[eQTL].values()})
         save_plot(res_df, eQTL)
 
-    with open("eqtl_res_dict.pickle", 'wb') as f:
+    with open(dropped_file_name, 'wb') as f:
         pickle.dump(eqtl_res, f)
 
     print("finish")
@@ -291,3 +298,4 @@ def marker_to_gene_vissualization():
 
 
 if __name__ == '__main__':
+    pass
