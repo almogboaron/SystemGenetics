@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pickle
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 
 def add_together_same_bxd(df: pd.DataFrame) -> pd.DataFrame:
@@ -156,6 +159,45 @@ def get_gene_location(df: pd.DataFrame, gene: str) -> pd.DataFrame:
     # return selected_gene.iloc[0]['representative genome chromosome'], selected_gene.iloc[0]['representative genome start'], selected_gene.iloc[0]['representative genome end']
 
 
+def plot_num_genes_per_eQTL(genes_to_snps:dict):
+    snp_dict = {}
+    for gene, df in genes_to_snps.items():
+        snps = df['Locus']  # Replace with the actual column name containing SNPs
+        for snp in snps:
+            if snp not in snp_dict:
+                snp_dict[snp] = set()
+            snp_dict[snp].add(gene)
+
+    for snp, genes in snp_dict.items():
+        snp_dict[snp]=len(genes)
+
+    genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37",	"Build37_position"]]
+    # Add a new column for SNP counts
+    genotype_df['SNP_Count'] = genotype_df["Locus"].map(snp_dict).fillna(0)
+    genotype_df['Locus'] = genotype_df['Locus'].astype(str)
+
+    genotype_df_filtered = genotype_df[genotype_df["Locus"].isin(snp_dict.keys())]
+    grouped = genotype_df.groupby('Chr_Build37')
+
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(100, 6))
+
+    for group, data_group in grouped:
+        x = data_group['Locus']
+        y = data_group['SNP_Count']
+        ax.bar(x, y, label=group)
+
+    ax.set_xlabel('Locus')
+    ax.set_ylabel('Gene Count')
+    ax.set_title('Gene Count Per eQTL genome Wide (Chromose and Lucos)')
+    ax.legend()
+
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+
 def analyse_significant_eQTLs(genes_to_snps: dict):
     snp_dict = {}
 
@@ -187,6 +229,9 @@ def analyse_significant_eQTLs(genes_to_snps: dict):
     print(f"Both 'Cis' and 'Trans' SNPs: {both_count}")
 
 
+def get_gene_boundries(df:pd.DataFrame,gene:str)->(int,int):
+    return df[df['marker symbol']==gene][['representative genome start','representative genome end']]
+
 P_VALUE_THREASHOLD = 4.667  # TODO: show how we calculated
 def analyse_eQTL_dict():
     # open csv for gene boundries
@@ -207,5 +252,38 @@ def analyse_eQTL_dict():
     analyse_significant_eQTLs(genes_relevant_snps)
 
 
+def marker_to_gene_vissualization():
+    # open csv for gene boundries
+    MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
+    genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37",	"Build37_position"]]
+
+    # open pickel file (with genes to snps and pvalues)
+    with open('eqtl_res_dict.pickle', 'rb') as f:
+        eqtl_dict = pickle.load(f)
+
+    # filter SNPs from each gene
+    genes_relevant_snps = filter_weak_associated_genes(eqtl_dict, P_VALUE_THREASHOLD)
+
+    MGI_Coordinates_df.sort_values(['representative genome chromosome','representative genome start'],inplace = True)
+    genotype_df.sort_values(['Chr_Build37','Build37_position'],inplace = True)
+    genes = MGI_Coordinates_df['marker symbol']
+    snps = genotype_df['Locus']
+
+    df = pd.DataFrame(0, index=snps, columns=genes)
+
+    for gene , snp_df in tqdm(genes_relevant_snps.items()):
+        for snp in snp_df['Locus']:
+            df[snp,gene]=1
+
+    # Create a heatmap
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df, cmap='Reds', cbar=False)
+    plt.xlabel('Genes')
+    plt.ylabel('SNPs')
+    plt.xticks([])  # Hides x-axis ticks
+    plt.yticks([])   # Hides y-axis tics
+    plt.title('SNP-Gene Mapping')
+    plt.show()
+
+
 if __name__ == '__main__':
-    analyse_eQTL_dict()
