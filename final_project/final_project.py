@@ -1,5 +1,6 @@
 import GEOparse
 import pandas as pd
+import numpy as np
 import pickle
 from tqdm import tqdm
 
@@ -129,12 +130,85 @@ def generate_working_dfs():
     liver_gse_name = "GSE17522"
     liver_gse = get_gse(liver_gse_name)
     liver_df = parse_gse(liver_gse, "liver")
-    liver_df.to_csv("liver_processed_data.csv")
+    liver_df.to_csv("liver_processed_data.csv", index=False)
 
     hypo_gse_name = "GSE36674"
     hypo_gse = get_gse(hypo_gse_name)
     hypo_df = parse_gse(hypo_gse, "hypo")
-    hypo_df.to_csv("hypo_processed_data.csv")
+    hypo_df.to_csv("hypo_processed_data.csv", index=False)
+
+
+def take_avg_on_multi_column_breeds(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Gets df with multiple same BXD columns, like BXD60, BXD60.1
+    And makes one column for breed with average value
+    :param df:
+    :return:
+    """
+    just_breeds = df.drop(columns=["ID_REF"])
+    averages = just_breeds.groupby(lambda col: col.split('.')[0], axis=1).mean()
+    averages.columns = [col.split('.')[0] if '.' in col else col for col in averages.columns]
+    result_df = pd.concat([df['ID_REF'], averages], axis=1)
+    return result_df
+
+
+def filter_neighboring_rows(data_frame, columns_to_check):
+    # Create a boolean mask to identify rows where any of the specified columns differ from the previous row
+    mask = ~data_frame[columns_to_check].eq(data_frame[columns_to_check].shift(1)).all(axis=1)
+    filtered_df = data_frame[mask]
+    return filtered_df
+
+
+def process_data(csv_file: str) -> pd.DataFrame:
+    """
+    Get a processed data csv with genes and strains (BXDs)
+    And clean and prep it for further analysis
+    :param csv_file:
+    :return:
+    """
+    df = pd.read_csv(csv_file)
+
+    # remove index column incase it was saved in the csv
+    if 'Unnamed: 0' in df.columns:
+        df.drop('Unnamed: 0', axis=1, inplace=True)
+
+    # remove rows with no gene identifier
+    df.dropna(subset=['ID_REF'], inplace=True)
+
+    # make df with unique breeds only (take avg of same BXDs)
+    df = take_avg_on_multi_column_breeds(df)
+
+    # Remove rows with low maximal value
+    max_values = df.iloc[:, 1:].max(axis=1)  # Assuming expression columns start from the second column
+    percentile_threshold = 90  # means we take the upper 10% of values
+    value_threshold = np.percentile(max_values, percentile_threshold)
+    filtered_df = df[max_values >= value_threshold]
+
+    # Remove rows with low variance
+    variance_values = filtered_df.iloc[:, 1:].var(axis=1)
+    percentile_threshold = 90
+    value_threshold = np.percentile(variance_values, percentile_threshold)
+    filtered_df = filtered_df[variance_values >= value_threshold]
+
+    # taking one probe with highest variance
+    filtered_df['RowVar'] = filtered_df.iloc[:, 1:].var(axis=1)
+    sorted_df = filtered_df.sort_values(by=['ID_REF', 'RowVar'], ascending=[True, False])
+    result_df = sorted_df.drop_duplicates(subset='ID_REF', keep='first').reset_index(drop=True)
+    result_df = result_df.drop(columns=['RowVar'])
+
+    # filter neighboring loci
+    res_df = filter_neighboring_rows(result_df, result_df.columns.delete([0]))
+
+    return res_df
+
+
+def checks():
+    hypo_ready_df = process_data("hypo_processed_data.csv")
+    hypo_ready_df.to_csv("hypo_ready.csv", index=False)
+
+    liver_ready_df = process_data("liver_processed_data.csv")
+    liver_ready_df.to_csv("liver_ready.csv", index=False)
+
 
 
 def correct_parsing():
@@ -189,5 +263,6 @@ if __name__ == '__main__':
     # test_GEOparse()
     # parse_tables()
     # correct_parsing()
-    generate_working_dfs()
+    # generate_working_dfs()
+    checks()
     pass
