@@ -254,7 +254,7 @@ def analyse_eQTL_dict():
 
 def marker_to_gene_vissualization():
     # open csv for gene boundries
-    MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
+    lps_sim = pd.read_csv("dendritic_LPS_stimulation.txt", sep="\t")
     genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37",	"Build37_position"]]
 
     # open pickel file (with genes to snps and pvalues)
@@ -264,25 +264,29 @@ def marker_to_gene_vissualization():
     # filter SNPs from each gene
     genes_relevant_snps = filter_weak_associated_genes(eqtl_dict, P_VALUE_THREASHOLD)
 
-    MGI_Coordinates_df.sort_values(['representative genome chromosome','representative genome start'],inplace = True)
     genotype_df.sort_values(['Chr_Build37','Build37_position'],inplace = True)
-    genes = MGI_Coordinates_df['marker symbol']
+    genes = lps_sim['data']
     snps = genotype_df['Locus']
 
     df = pd.DataFrame(0, index=snps, columns=genes)
 
     for gene , snp_df in tqdm(genes_relevant_snps.items()):
         for snp in snp_df['Locus']:
-            df[snp,gene]=1
+            df.loc[snp,gene]=1
 
-    # Create a heatmap
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(df, cmap='Reds', cbar=False)
-    plt.xlabel('Genes')
-    plt.ylabel('SNPs')
-    plt.xticks([])  # Hides x-axis ticks
-    plt.yticks([])   # Hides y-axis tics
-    plt.title('SNP-Gene Mapping')
+    # Create a scatter plot
+    fig, ax = plt.subplots()
+
+    for col in df.columns:
+        for idx, value in enumerate(df[col]):
+            if value == 1:
+                ax.scatter(col, df.index[idx], color='red', marker='o')
+
+    # Set labels for axes
+    ax.set_xlabel('X Axis')
+    ax.set_ylabel('Y Axis')
+
+    # Show the plot
     plt.show()
 
 
