@@ -307,7 +307,7 @@ def prep_data(breed_gn: dict, breed_ph: dict):
 
 
 # related to Q2
-def q_2_analysis(genotypes_file_path, phenotypes_file_path):
+def q_2_analysis(genotypes_file_path, phenotypes_file_path, wanted_phenotype_id, res_path):
     """
     Gets genotypes and phenotypes file paths
     Runs linear regression model on each SNP regarding phenotype with ID: 1195
@@ -322,7 +322,7 @@ def q_2_analysis(genotypes_file_path, phenotypes_file_path):
     ph_df = pd.read_excel(phenotypes_file_path)
 
     # get chosen phenotype
-    ph_row = ph_df[ph_df["ID_FOR_CHECK"] == WANTED_ID]
+    ph_row = ph_df[ph_df["ID_FOR_CHECK"] == wanted_phenotype_id]
 
     # filter for breeds that contain phenotype value (not Nan)
     ph_non_empty_breeds = {}
@@ -339,7 +339,7 @@ def q_2_analysis(genotypes_file_path, phenotypes_file_path):
         snp = r["Locus"]
         gn_filtered_breeds = {}
         for br in ph_non_empty_breeds:
-            if r[br] in genotypes_to_consider:
+            if br in r and r[br] in genotypes_to_consider:
                 gn_filtered_breeds[br] = r[br]
         snp_to_gn[snp] = gn_filtered_breeds
 
@@ -353,11 +353,11 @@ def q_2_analysis(genotypes_file_path, phenotypes_file_path):
 
     # saves results to file
     res_df = pd.DataFrame({"snp": snp_to_res.keys(), "-log(p-value)": snp_to_res.values()})
-    res_df.to_csv("snps_p_val.csv")
+    res_df.to_csv(res_path)
 
 
 # related to Q2
-def plot_q2_results(data_path):
+def plot_q2_results(data_path, phenotype_name: str = None):
     """
     Gets path to the output file from q_2_analysis func
     Plots manhattan plot and prints best SNP
@@ -377,7 +377,7 @@ def plot_q2_results(data_path):
     plt.axhline(df[p_val_c_name].mean(), color='red', linestyle='--')  # Add a red line for mean log p-value
     plt.xlabel('SNP Position')
     plt.ylabel('-log P-value')
-    plt.title('Manhattan Plot')
+    plt.title(f'Manhattan Plot for: {phenotype_name}')
     plt.xticks(range(len(df)), df[snp_c_name], rotation=90)  # Show SNP names on x-axis
     # plt.tight_layout()
     plt.show()
@@ -394,6 +394,6 @@ if __name__ == '__main__':
     # regression_tests(genotypes_to_consider=['B', 'H', 'D'])
     # anova_test(genotypes_to_consider=['B', 'D'])
     # find_relevant_phenotype()
-    q_2_analysis("genotypes.xls", "phenotypes.xls")
+    # q_2_analysis("genotypes.xls", "phenotypes.xls")
     # plot_q2_results("snps_p_val.csv")
     pass

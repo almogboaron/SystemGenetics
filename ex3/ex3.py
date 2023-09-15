@@ -140,8 +140,11 @@ def filter_weak_associated_genes(dict_eQTL: dict, p_value_threshold: float) -> d
 def add_to_df_cis_or_trans(df_gene: pd.DataFrame , gene_loc: pd.DataFrame ,genotypes_df: pd.DataFrame) -> pd.DataFrame:
     range_size = 2*10**6    # 2Mbp
 
-    # add gene location to snp df
-    merged_snp_gene_loc = df_gene.assign(**gene_loc.iloc[0])
+    try:
+        # add gene location to snp df
+        merged_snp_gene_loc = df_gene.assign(**gene_loc.iloc[0])
+    except Exception as ex:
+        print(str(ex))
 
     # merge df1 with df2 to get SNP location
     merged = pd.merge(merged_snp_gene_loc, genotypes_df, on='Locus',how="inner")
@@ -155,7 +158,7 @@ def add_to_df_cis_or_trans(df_gene: pd.DataFrame , gene_loc: pd.DataFrame ,genot
     merged.loc[cis_mask, 'Cis\Trans'] = 'Cis'
     merged.loc[~cis_mask, 'Cis\Trans'] = 'Trans'
 
-    return merged[["Locus", "P_value", 'Cis\Trans']]
+    return merged[["Locus", "P_value", 'Cis\Trans', 'Build37_position']]
 
 
 def get_gene_location(df: pd.DataFrame, gene: str) -> pd.DataFrame:
@@ -166,7 +169,7 @@ def get_gene_location(df: pd.DataFrame, gene: str) -> pd.DataFrame:
     # return selected_gene.iloc[0]['representative genome chromosome'], selected_gene.iloc[0]['representative genome start'], selected_gene.iloc[0]['representative genome end']
 
 
-def plot_num_genes_per_eQTL(genes_to_snps:dict):
+def plot_num_genes_per_eQTL(genes_to_snps: dict):
     snp_dict = {}
     for gene, df in genes_to_snps.items():
         snps = df['Locus']  # Replace with the actual column name containing SNPs
@@ -239,14 +242,44 @@ def analyse_significant_eQTLs(genes_to_snps: dict):
 def get_gene_boundries(df:pd.DataFrame,gene:str)->(int,int):
     return df[df['marker symbol']==gene][['representative genome start','representative genome end']]
 
-P_VALUE_THREASHOLD = 4.667  # TODO: show how we calculated
-def analyse_eQTL_dict():
+
+def compare_cis_trans_p_values(genes_to_snps: dict):
+    cis_p_vals = []
+    trans_p_vals = []
+
+    # Loop through each gene and extract SNP information
+    for gene, df in genes_to_snps.items():
+        snps = df['Locus']  # Replace with the actual column name containing SNPs
+        cis_or_trans = df['Cis\Trans']  # Replace with the actual column name containing significance
+        p_value = df['P_value']
+        for i, row in df.iterrows():
+            snp = row['Locus']
+            act = row['Cis\Trans']
+            p_value = row['P_value']
+            if act == 'Cis':
+                cis_p_vals.append(p_value)
+            elif act == 'Trans':
+                trans_p_vals.append(p_value)
+
+    plt.figure(figsize=(10, 6))  # Adjust the figure size as needed
+    plt.hist(cis_p_vals, bins=20, alpha=0.5, label='Cis')
+    plt.hist(trans_p_vals, bins=20, alpha=0.5, label='Trans')
+    plt.xlabel('P-Values')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of P-Values')
+    plt.legend()
+    plt.show()
+
+
+# P_VALUE_THREASHOLD = 4.667  # TODO: show how we calculated
+P_VALUE_THREASHOLD = 7.273
+def analyse_eQTL_dict(eqtl_dict_path: str):
     # open csv for gene boundries
     MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
     genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37",	"Build37_position"]]
 
     # open pickel file (with genes to snps and pvalues)
-    with open('eqtl_res_dict.pickle', 'rb') as f:
+    with open(eqtl_dict_path, 'rb') as f:
         eqtl_dict = pickle.load(f)
 
     # filter SNPs from each gene
@@ -256,7 +289,11 @@ def analyse_eQTL_dict():
         gene_loc = get_gene_location(MGI_Coordinates_df, gene)
         genes_relevant_snps[gene] = add_to_df_cis_or_trans(genes_relevant_snps[gene], gene_loc, genotype_df)
 
+    # Q1
     analyse_significant_eQTLs(genes_relevant_snps)
+
+    # Q3
+    compare_cis_trans_p_values(genes_relevant_snps)
 
 
 def marker_to_gene_vissualization():

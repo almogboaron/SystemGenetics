@@ -1,4 +1,5 @@
-from ex3.ex3 import association_test
+from ex2.hw2_208273672 import q_2_analysis, plot_q2_results
+from ex3.ex3 import association_test, analyse_eQTL_dict
 import GEOparse
 import pandas as pd
 import numpy as np
@@ -214,12 +215,87 @@ def pre_process_raw_dfs():
     liver_ready_df.to_csv("liver_ready.csv", index=False)
 
 
-def eqtl_analysis():
+def eqtl_generation():
     liver_df = pd.read_csv("liver_ready.csv")
     association_test(expression_df=liver_df, dropped_file_name="liver_eqtl_dict.pickle")
 
     hypo_df = pd.read_csv("hypo_ready.csv")
     association_test(expression_df=hypo_df, dropped_file_name="hypo_eqtl_dict.pickle")
+
+
+def filter_weak_associated_genes(dict_eQTL: dict, p_value_threshold: float) -> dict:
+    res = {}
+    for gene in dict_eQTL.keys():
+        df_gene = pd.DataFrame(dict_eQTL[gene].items(), columns=['Locus', 'P_value'])
+        df_filtered = df_gene[df_gene['P_value'] > p_value_threshold]
+        if len(df_filtered) > 0:
+            res[gene] = df_filtered
+    return res
+
+
+def analyze_genes_snps(genes_to_snps: dict):
+    snp_count_dict = {}
+
+    # Iterate over the gene_dict
+    for gene, df in genes_to_snps.items():
+        # Extract unique SNPs from each gene's DataFrame
+        unique_snps = df['Locus'].unique()
+
+        # Update the snp_count_dict with the count of unique SNPs
+        for snp in unique_snps:
+            snp_count_dict[snp] = snp_count_dict.get(snp, 0) + 1
+
+    # Convert the snp_count_dict to a DataFrame (optional)
+    result_df = pd.DataFrame(list(snp_count_dict.items()), columns=['SNP', 'Gene_Count'])
+    return result_df
+
+
+P_VALUE_THREASHOLD = 7.273
+def eqtl_analysis():
+    # open csv for gene boundries
+    MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
+    genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37", "Build37_position"]]
+
+    # open pickel file (with genes to snps and pvalues)
+    with open("liver_eqtl_dict.pickle", 'rb') as f:
+        eqtl_dict = pickle.load(f)
+
+    # filter SNPs from each gene
+    genes_relevant_snps = filter_weak_associated_genes(eqtl_dict, P_VALUE_THREASHOLD)
+    res = analyze_genes_snps(genes_relevant_snps)
+    print(f"Number of significant SNPs: {len(res)}")
+    print(f"Maximum genes number associated by one SNP: {res['Gene_Count'].max()}")
+    print(f"Minimum genes number associated by one SNP: {res['Gene_Count'].min()}")
+
+
+def qtl_generation():
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 147, "longevity.csv")
+    # plot_q2_results("longevity.csv", "longevity")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 114, "CAFC.csv")
+    # plot_q2_results("CAFC.csv", "CAFC")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 225, "t_cell_decline.csv")
+    # plot_q2_results("t_cell_decline.csv", "T Cell Decline")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 231, "Thymocyte_count.csv")
+    # plot_q2_results("Thymocyte_count.csv", "Thymocyte Count")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 640, "Polyglucosan_bodies_hippocampus.csv")
+    # plot_q2_results("Polyglucosan_bodies_hippocampus.csv", "Polyglucosan bodies in the hippocampus")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 2365, "Bone_mineral_density.csv")
+    # plot_q2_results("Bone_mineral_density.csv", "Bone mineral density")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 2258, "Glucose_after_4_hour_fast.csv")
+    # plot_q2_results("Glucose_after_4_hour_fast.csv", "Glucose after 4 hour fast")
+    #
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 685, "muscle_weight.csv")
+    # plot_q2_results("muscle_weight.csv", "muscle weight")
+
+    # Idan's phenotype
+    q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
+    plot_q2_results("idan_phen.csv", "idan_phen")
 
 
 def correct_parsing():
@@ -276,5 +352,6 @@ if __name__ == '__main__':
     # correct_parsing()
     # generate_working_dfs()
     # pre_process_raw_dfs()
-    eqtl_analysis()
+    # eqtl_analysis()
+    qtl_generation()
     pass
