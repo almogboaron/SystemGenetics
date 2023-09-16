@@ -1,12 +1,12 @@
 from ex2.hw2_208273672 import q_2_analysis, plot_q2_results, generate_qtl_dict
-from ex3.ex3 import association_test, analyse_eQTL_dict
+from ex3.ex3 import association_test, analyse_eQTL_dict, filter_weak_associated_genes
 import GEOparse
 import pandas as pd
 import numpy as np
 import pickle
 from tqdm import tqdm
-from math import fabs
 from math import log10
+from math import fabs
 
 
 def get_gse(gse_name: str) ->  GEOparse.GEOTypes.GSE:
@@ -300,7 +300,8 @@ def qtl_generation():
     # q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
     # plot_q2_results("idan_phen.csv", "idan_phen")
 
-    phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
+    # phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
+    phenotypes_ids = [260, 148, 2, 355, 356, 360, 1703, 684, 701, 703, 1719, 1822, 1880, 1885, 1953, 1954, 2010, 2034, 2156, 2177, 2179, 2195, 114, 142, 159, 160]
     generate_qtl_dict(phenotypes_ids, "genotypes.xls", "phenotypes.xls")
 
 
@@ -309,7 +310,8 @@ def revert_dict_get_snp_keys(genes_to_snps: dict) -> dict:
     for gene, df in genes_to_snps.items():
         unique_snps = df['Locus'].unique()
         for snp in unique_snps:
-            snp_to_genes[snp] = snp_to_genes.get(snp, []).append(gene)
+            existing_map = snp_to_genes[snp] = snp_to_genes.get(snp, [])
+            existing_map.append(gene)
     return snp_to_genes
 
 
@@ -354,11 +356,10 @@ def combine_results():
     phenotypes_qtls = filter_weak_associated_genes(phenotypes_qtl_dict, -log10(0.1))
 
     print("Comparing eQTLs and QTLs for liver")
-    compare_qtl_vs_eqtl(liver_eqtl_dict, phenotypes_qtl_dict)
+    snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(liver_eqtls, phenotypes_qtls)
 
     print("Comparing eQTLs and QTLs for hypo")
-    compare_qtl_vs_eqtl(hypo_eqtl_dict, phenotypes_qtl_dict)
-
+    snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(hypo_eqtls, phenotypes_qtls)
 
 
 def Create_Triplets(snp_pheno_dict:dict ,snp_gene_dict:dict):
@@ -388,7 +389,34 @@ def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
     # Get genotype_row with data
     df_res = genotype_df.loc[genotype_df['Locus'] == triplet[0]]
     df_res = df_res.drop(df_res.columns[:4], axis=1)
-    snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(hypo_eqtls, phenotypes_qtls)
+
+    # Find columns with values other than 'B' or 'D'
+    cols_to_drop = df_res.columns[~df_res.isin(['B', 'D']).all()]
+
+    # Drop the identified columns
+    df_res = df_res.drop(cols_to_drop, axis=1)
+
+
+    df_res.replace({'B': 0, 'D': 1}, inplace=True)
+    df_res.index = [r"B=0\D=1"]
+
+    # Get expression row with data
+    expression_row = expression_df.loc[expression_df['data'] == triplet[1]]
+    expression_row = expression_row.drop(expression_row.columns[:2], axis=1)
+    expression_row.index = ["R"]
+
+    # Intesect columns and add to df_res:
+    common_columns = df_res.columns.intersection(expression_row.columns)
+    df_res = pd.concat([df_res[common_columns],expression_row[common_columns]],ignore_index=True)
+
+    # Get Phenotype row with data
+    phenotype_row = phenotype_df.loc[phenotype_df['ID_FOR_CHECK'] == int(triplet[2])]
+    phenotype_row = phenotype_row.drop(phenotype_row.columns[:8], axis=1)
+    phenotype_row.index = ["C"]
+
+    # Intesect columns and add to df_res:
+    common_columns = df_res.columns.intersection(phenotype_row.columns)
+    df_res = pd.concat([df_res[common_columns],phenotype_row[common_columns]],ignore_index=True)
 
 
 if __name__ == '__main__':
@@ -400,4 +428,5 @@ if __name__ == '__main__':
     # eqtl_generation()
     # eqtl_analysis()
     qtl_generation()
+    # combine_results()
     pass
