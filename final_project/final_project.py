@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import pickle
 from tqdm import tqdm
+from math import fabs
 
 
 def get_gse(gse_name: str) ->  GEOparse.GEOTypes.GSE:
@@ -360,11 +361,6 @@ def correct_parsing():
     gpl_data = gse.gpls[list(gse.gpls.keys())[0]]
     df = gpl_data.table
 
-    print(f"Number of SNPs affect both gene expression and phenotye: {len(snps_affect_both)}")
-    print(f"SNPs affect both: {snps_affect_both}")
-    print()
-    print(f"Number of SNPs affect only gene expression: {len(snps_only_affect_gene_expression)}")
-    print(f"Number of SNPs affect only phenotype: {len(snps_affect_only_phenotype)}")
 
 def get_expression_data():
     hsc_db = GEOparse.get_GEO(filepath=r"data_sets\GDS1077_full.soft")
@@ -388,23 +384,81 @@ def test_GEOparse():
     # with open(r"data_sets\liver_data.pickle", 'wb') as f:
     #     pickle.dump(db2, f)
 
-    hsc_dataset_id = "GDS1077"
-    hsc_dataset = GEOparse.get_GEO(hsc_dataset_id)
+    #hsc_dataset_id = "GDS1077"
+    #hsc_dataset = GEOparse.get_GEO(hsc_dataset_id)
 
-    liver_dataset_id = "GSE17522"
-    liver_dataset = GEOparse.get_GEO(liver_dataset_id)
+    #liver_dataset_id = "GSE17522"
+    #liver_dataset = GEOparse.get_GEO(liver_dataset_id)
 
     # Access the expression data and metadata
-    expression_data = dataset.pivot_table
-    metadata = dataset.metadata
+    #expression_data = dataset.pivot_table
+    #metadata = dataset.metadata
 
     # Filter the expression data to retain only BXD samples
-    bxd_sample_ids = [sample_id for sample_id in expression_data.columns if sample_id.startswith("BXD")]
-    bxd_expression_data = expression_data[bxd_sample_ids]
+    #bxd_sample_ids = [sample_id for sample_id in expression_data.columns if sample_id.startswith("BXD")]
+    #bxd_expression_data = expression_data[bxd_sample_ids]
 
     # Display the extracted BXD expression data
-    print(bxd_expression_data)
+    #print(bxd_expression_data)
+    pass
 
+
+def Create_Triplets(snp_pheno_dict:dict ,snp_gene_dict:dict):
+    geno_df = pd.read_excel(r"genotypes.xls")
+    geno_df.set_index('Locus', inplace=True)
+    set_triplets = set()
+    for snp_pheno in snp_pheno_dict.keys():
+        for pheno in snp_pheno_dict[snp_pheno]:
+            for snp_gene in snp_gene_dict.keys():
+                if((geno_df.loc[snp_pheno,"Chr_Build37"] == geno_df.loc[snp_gene,"Chr_Build37"]) and
+                        fabs((geno_df["Build37_position"].loc[snp_pheno], - geno_df.loc["Build37_position"].loc[snp_gene])) < 2*10**6):
+                            for gene in snp_gene_dict[snp_gene]:
+                                set_triplets.add(np.array([snp_pheno, gene, pheno]))
+
+    return set_triplets
+
+
+def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
+    if(database=="hypo"):
+        expression_df = pd.read_csv(r"hypo_ready.csv")
+    if(database=="liver"):
+        expression_df = pd.read_csv(r"liver_ready.csv")
+
+    genotype_df = pd.read_excel(r"genotypes.xls", header=1)
+    phenotype_df = pd.read_excel(r"phenotypes.xls")
+
+    # Get genotype_row with data
+    df_res = genotype_df.loc[genotype_df['Locus'] == triplet[0]]
+    df_res = df_res.drop(df_res.columns[:4], axis=1)
+
+    # Find columns with values other than 'B' or 'D'
+    cols_to_drop = df_res.columns[~df_res.isin(['B', 'D']).all()]
+
+    # Drop the identified columns
+    df_res = df_res.drop(cols_to_drop, axis=1)
+
+
+    df_res.replace({'B': 0, 'D': 1}, inplace=True)
+    df_res.index = [r"B=0\D=1"]
+
+
+    # Get expression row with data
+    expression_row = expression_df.loc[expression_df['data'] == triplet[1]]
+    expression_row = expression_row.drop(expression_row.columns[:2], axis=1)
+    expression_row.index = ["R"]
+
+    # Intesect columns and add to df_res:
+    common_columns = df_res.columns.intersection(expression_row.columns)
+    df_res = pd.concat([df_res[common_columns],expression_row[common_columns]],ignore_index=True)
+
+    # Get Phenotype row with data
+    phenotype_row = phenotype_df.loc[phenotype_df['ID_FOR_CHECK'] == int(triplet[2])]
+    phenotype_row = phenotype_row.drop(phenotype_row.columns[:8], axis=1)
+    phenotype_row.index = ["C"]
+
+    # Intesect columns and add to df_res:
+    common_columns = df_res.columns.intersection(phenotype_row.columns)
+    df_res = pd.concat([df_res[common_columns],phenotype_row[common_columns]],ignore_index=True)
 
 if __name__ == '__main__':
     # test_GEOparse()
@@ -414,5 +468,6 @@ if __name__ == '__main__':
     # pre_process_raw_dfs()
     # eqtl_generation()
     # eqtl_analysis()
-    qtl_generation()
+    #qtl_generation
+    Df_For_Triplet(np.array(["rs3713198","2310007B03Rik",10]),"liver")
     pass
