@@ -6,6 +6,8 @@ import pickle
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+from statsmodels.stats.multitest import fdrcorrection
+from math import log
 
 
 def add_together_same_bxd(df: pd.DataFrame) -> pd.DataFrame:
@@ -33,11 +35,12 @@ def filter_neighboring_rows(data_frame, columns_to_check):
 
 
 # PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\ex3\plots"   # Todo: change to generic absolute path
-PLOT_FOLDER = r"C:\Users\User1\Desktop\stuff\TAU\TASHPC\sem_b\systems_genetics\git_stuff\SystemGenetics\final_project\plots"   # Todo: change to generic absolute path
+PLOT_FOLDER = r"Plots"
 
 
 def save_plot(df: pd.DataFrame, gene_name):
     p_val_c_name = "-log(p-value)"
+    p_val_c_name = "-log(corrected-p-value)"
     snp_c_name = "snp"
 
     # Sort the DataFrame by -log(p-value) in descending order
@@ -117,8 +120,12 @@ def association_test(expression_df: pd.DataFrame = None, dropped_file_name: str 
             res = regression_model(df["genotype"], df["phenotype"])
             snp_to_res[snp] = res   # res is -log(p-value)
 
-        eqtl_res[eQTL] = snp_to_res
-        res_df = pd.DataFrame({"snp": eqtl_res[eQTL].keys(), "-log(p-value)": eqtl_res[eQTL].values()})
+        res_df = pd.DataFrame({"snp": snp_to_res.keys(), "-log(p-value)": snp_to_res.values()})
+        res_df["p-value"] = res_df["-log(p-value)"].apply(lambda x: 10**(-x))
+        res_df["corrected-p-value"] = fdrcorrection(res_df["p-value"], alpha=0.05)[1]
+        res_df["-log(corrected-p-value)"] = res_df["corrected-p-value"].apply(lambda x: -log(x, 10))
+        res_df = res_df.drop(columns=["-log(p-value)", "corrected-p-value", "p-value"])
+        eqtl_res[eQTL] = dict(zip(res_df['snp'], res_df['-log(corrected-p-value)']))
         save_plot(res_df, eQTL)
 
     with open(dropped_file_name, 'wb') as f:
