@@ -340,8 +340,8 @@ def combine_results():
     with open("liver_eqtl_dict.pickle", 'rb') as f:
         liver_eqtl_dict = pickle.load(f)
 
-    # with open("hypo_eqtl_dict.pickle", 'rb') as f:
-    #     hypo_eqtl_dict = pickle.load(f)
+    with open("hypo_eqtl_dict.pickle", 'rb') as f:
+        hypo_eqtl_dict = pickle.load(f)
 
     with open("phenotypes_qtl_dict.pickle", 'rb') as f:
         phenotypes_qtl_dict = pickle.load(f)
