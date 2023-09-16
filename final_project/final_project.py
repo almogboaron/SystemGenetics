@@ -310,6 +310,7 @@ def revert_dict_get_snp_keys(genes_to_snps: dict) -> dict:
             snp_to_genes[snp] = snp_to_genes.get(snp, []).append(gene)
     return snp_to_genes
 
+
 def compare_qtl_vs_eqtl(gene_to_snp: dict, phenotype_to_snp: dict):
     snp_to_genes = revert_dict_get_snp_keys(gene_to_snp)
     snp_to_phenotype = revert_dict_get_snp_keys(phenotype_to_snp)
@@ -339,8 +340,8 @@ def combine_results():
     with open("liver_eqtl_dict.pickle", 'rb') as f:
         liver_eqtl_dict = pickle.load(f)
 
-    with open("hypo_eqtl_dict.pickle", 'rb') as f:
-        hypo_eqtl_dict = pickle.load(f)
+    # with open("hypo_eqtl_dict.pickle", 'rb') as f:
+    #     hypo_eqtl_dict = pickle.load(f)
 
     with open("phenotypes_qtl_dict.pickle", 'rb') as f:
         phenotypes_qtl_dict = pickle.load(f)
@@ -352,13 +353,57 @@ def combine_results():
     compare_qtl_vs_eqtl(hypo_eqtl_dict, phenotypes_qtl_dict)
 
 
+def correct_parsing():
+    with open(r"data_sets\liver_data.pickle", 'rb') as f:
+        gse = pickle.load(f)
+
+    gpl_data = gse.gpls[list(gse.gpls.keys())[0]]
+    df = gpl_data.table
+
+    print(f"Number of SNPs affect both gene expression and phenotye: {len(snps_affect_both)}")
+    print(f"SNPs affect both: {snps_affect_both}")
+    print()
+    print(f"Number of SNPs affect only gene expression: {len(snps_only_affect_gene_expression)}")
+    print(f"Number of SNPs affect only phenotype: {len(snps_affect_only_phenotype)}")
+
+def get_expression_data():
+    hsc_db = GEOparse.get_GEO(filepath=r"data_sets\GDS1077_full.soft")
+    hsc_df = hsc_db.table
+    hsc_df.to_csv("hsc_df.csv")
+
+    with open(r"data_sets\liver_data.pickle", 'rb') as f:
+        gse = pickle.load(f)
+
+    gpl_data = gse.gpls[list(gse.gpls.keys())[0]]
+    liver_df = gpl_data.table
+    liver_df.to_csv("liver_df.csv")
 
 
+def test_GEOparse():
+    # Load the SOFT file for the specified dataset ID (GDS number)
+    # db1 = GEOparse.get_GEO(filepath=r"data_sets\GDS1077_full.soft")
+    # db2 = GEOparse.get_GEO(filepath=r"data_sets\GSE18067_family.soft")
 
+    # write pickle for later use
+    # with open(r"data_sets\liver_data.pickle", 'wb') as f:
+    #     pickle.dump(db2, f)
 
+    hsc_dataset_id = "GDS1077"
+    hsc_dataset = GEOparse.get_GEO(hsc_dataset_id)
 
+    liver_dataset_id = "GSE17522"
+    liver_dataset = GEOparse.get_GEO(liver_dataset_id)
 
+    # Access the expression data and metadata
+    expression_data = dataset.pivot_table
+    metadata = dataset.metadata
 
+    # Filter the expression data to retain only BXD samples
+    bxd_sample_ids = [sample_id for sample_id in expression_data.columns if sample_id.startswith("BXD")]
+    bxd_expression_data = expression_data[bxd_sample_ids]
+
+    # Display the extracted BXD expression data
+    print(bxd_expression_data)
 
 
 if __name__ == '__main__':
@@ -367,8 +412,7 @@ if __name__ == '__main__':
     # correct_parsing()
     # generate_working_dfs()
     # pre_process_raw_dfs()
+    # eqtl_generation()
     # eqtl_analysis()
-    # qtl_generation()
-    # combine_results()
-    eqtl_generation()
+    qtl_generation()
     pass

@@ -6,6 +6,7 @@ import statsmodels.api as sm
 from scipy.stats import t, f, f_oneway
 import pickle
 from tqdm import tqdm
+from statsmodels.stats.multitest import fdrcorrection
 
 NON_DATA_COLS = ["ID_FOR_CHECK", "Phenotype", "Authors", "Year", "Pubmed Id", "empty_cnt", "std"]
 
@@ -313,7 +314,6 @@ def generate_qtl_dict(phenotype_ids: list, genotypes_file_path, phenotypes_file_
         snps_to_p_val = q_2_analysis(genotypes_file_path, phenotypes_file_path, phenotype_id, f"{phenotype_id}.csv")
         qtl_dict[phenotype_id] = snps_to_p_val
 
-
     with open("phenotypes_qtl_dict.pickle", 'wb') as f:
         pickle.dump(qtl_dict, f)
 
@@ -365,8 +365,13 @@ def q_2_analysis(genotypes_file_path, phenotypes_file_path, wanted_phenotype_id,
 
     # saves results to file
     res_df = pd.DataFrame({"snp": snp_to_res.keys(), "-log(p-value)": snp_to_res.values()})
+    res_df["p-value"] = res_df["-log(p-value)"].apply(lambda x: 10 ** (-x))
+    res_df["corrected-p-value"] = fdrcorrection(res_df["p-value"], alpha=0.05)[1]
+    res_df["-log(corrected-p-value)"] = res_df["corrected-p-value"].apply(lambda x: -log10(x))
+    res_df = res_df.drop(columns=["-log(p-value)", "corrected-p-value", "p-value"])
+    res_dict = dict(zip(res_df['snp'], res_df['-log(corrected-p-value)']))
     res_df.to_csv(res_path)
-    return res_df
+    return res_dict
 
 
 # related to Q2
