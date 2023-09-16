@@ -383,7 +383,8 @@ def plot_q2_results(data_path, phenotype_name: str = None):
     :return:
     """
     df = pd.read_csv(data_path)
-    p_val_c_name = "-log(p-value)"
+    # p_val_c_name = "-log(p-value)"
+    p_val_c_name = '-log(corrected-p-value)'
     snp_c_name = "snp"
 
     # Sort the DataFrame by -log(p-value) in descending order

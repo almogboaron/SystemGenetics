@@ -1,10 +1,11 @@
 from ex2.hw2_208273672 import q_2_analysis, plot_q2_results, generate_qtl_dict
-from ex3.ex3 import association_test, analyse_eQTL_dict
+from ex3.ex3 import association_test, analyse_eQTL_dict, filter_weak_associated_genes
 import GEOparse
 import pandas as pd
 import numpy as np
 import pickle
 from tqdm import tqdm
+from math import log10
 
 
 def get_gse(gse_name: str) ->  GEOparse.GEOTypes.GSE:
@@ -298,7 +299,8 @@ def qtl_generation():
     # q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
     # plot_q2_results("idan_phen.csv", "idan_phen")
 
-    phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
+    # phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
+    phenotypes_ids = [260, 148, 2, 355, 356, 360, 1703, 684, 701, 703, 1719, 1822, 1880, 1885, 1953, 1954, 2010, 2034, 2156, 2177, 2179, 2195, 114, 142, 159, 160]
     generate_qtl_dict(phenotypes_ids, "genotypes.xls", "phenotypes.xls")
 
 
@@ -307,7 +309,8 @@ def revert_dict_get_snp_keys(genes_to_snps: dict) -> dict:
     for gene, df in genes_to_snps.items():
         unique_snps = df['Locus'].unique()
         for snp in unique_snps:
-            snp_to_genes[snp] = snp_to_genes.get(snp, []).append(gene)
+            existing_map = snp_to_genes[snp] = snp_to_genes.get(snp, [])
+            existing_map.append(gene)
     return snp_to_genes
 
 
@@ -334,6 +337,7 @@ def compare_qtl_vs_eqtl(gene_to_snp: dict, phenotype_to_snp: dict):
     print()
     print(f"Number of SNPs affect only gene expression: {len(snps_only_affect_gene_expression)}")
     print(f"Number of SNPs affect only phenotype: {len(snps_affect_only_phenotype)}")
+    return snp_to_genes, snp_to_phenotype
 
 
 def combine_results():
@@ -346,64 +350,15 @@ def combine_results():
     with open("phenotypes_qtl_dict.pickle", 'rb') as f:
         phenotypes_qtl_dict = pickle.load(f)
 
+    liver_eqtls = filter_weak_associated_genes(liver_eqtl_dict, -log10(0.05))
+    hypo_eqtls = filter_weak_associated_genes(hypo_eqtl_dict, -log10(0.05))
+    phenotypes_qtls = filter_weak_associated_genes(phenotypes_qtl_dict, -log10(0.1))
+
     print("Comparing eQTLs and QTLs for liver")
-    compare_qtl_vs_eqtl(liver_eqtl_dict, phenotypes_qtl_dict)
+    snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(liver_eqtls, phenotypes_qtls)
 
     print("Comparing eQTLs and QTLs for hypo")
-    compare_qtl_vs_eqtl(hypo_eqtl_dict, phenotypes_qtl_dict)
-
-
-def correct_parsing():
-    with open(r"data_sets\liver_data.pickle", 'rb') as f:
-        gse = pickle.load(f)
-
-    gpl_data = gse.gpls[list(gse.gpls.keys())[0]]
-    df = gpl_data.table
-
-    print(f"Number of SNPs affect both gene expression and phenotye: {len(snps_affect_both)}")
-    print(f"SNPs affect both: {snps_affect_both}")
-    print()
-    print(f"Number of SNPs affect only gene expression: {len(snps_only_affect_gene_expression)}")
-    print(f"Number of SNPs affect only phenotype: {len(snps_affect_only_phenotype)}")
-
-def get_expression_data():
-    hsc_db = GEOparse.get_GEO(filepath=r"data_sets\GDS1077_full.soft")
-    hsc_df = hsc_db.table
-    hsc_df.to_csv("hsc_df.csv")
-
-    with open(r"data_sets\liver_data.pickle", 'rb') as f:
-        gse = pickle.load(f)
-
-    gpl_data = gse.gpls[list(gse.gpls.keys())[0]]
-    liver_df = gpl_data.table
-    liver_df.to_csv("liver_df.csv")
-
-
-def test_GEOparse():
-    # Load the SOFT file for the specified dataset ID (GDS number)
-    # db1 = GEOparse.get_GEO(filepath=r"data_sets\GDS1077_full.soft")
-    # db2 = GEOparse.get_GEO(filepath=r"data_sets\GSE18067_family.soft")
-
-    # write pickle for later use
-    # with open(r"data_sets\liver_data.pickle", 'wb') as f:
-    #     pickle.dump(db2, f)
-
-    hsc_dataset_id = "GDS1077"
-    hsc_dataset = GEOparse.get_GEO(hsc_dataset_id)
-
-    liver_dataset_id = "GSE17522"
-    liver_dataset = GEOparse.get_GEO(liver_dataset_id)
-
-    # Access the expression data and metadata
-    expression_data = dataset.pivot_table
-    metadata = dataset.metadata
-
-    # Filter the expression data to retain only BXD samples
-    bxd_sample_ids = [sample_id for sample_id in expression_data.columns if sample_id.startswith("BXD")]
-    bxd_expression_data = expression_data[bxd_sample_ids]
-
-    # Display the extracted BXD expression data
-    print(bxd_expression_data)
+    snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(hypo_eqtls, phenotypes_qtls)
 
 
 if __name__ == '__main__':
@@ -415,4 +370,5 @@ if __name__ == '__main__':
     # eqtl_generation()
     # eqtl_analysis()
     qtl_generation()
+    # combine_results()
     pass
