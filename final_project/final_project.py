@@ -310,6 +310,7 @@ def revert_dict_get_snp_keys(genes_to_snps: dict) -> dict:
             snp_to_genes[snp] = snp_to_genes.get(snp, []).append(gene)
     return snp_to_genes
 
+
 def compare_qtl_vs_eqtl(gene_to_snp: dict, phenotype_to_snp: dict):
     snp_to_genes = revert_dict_get_snp_keys(gene_to_snp)
     snp_to_phenotype = revert_dict_get_snp_keys(phenotype_to_snp)
@@ -406,8 +407,8 @@ if __name__ == '__main__':
     # correct_parsing()
     # generate_working_dfs()
     # pre_process_raw_dfs()
+    # eqtl_generation()
     # eqtl_analysis()
-    # qtl_generation()
+    qtl_generation()
     # combine_results()
-    eqtl_generation()
     pass
