@@ -144,7 +144,7 @@ def filter_weak_associated_genes(dict_eQTL: dict, p_value_threshold: float) -> d
     return res
 
 
-def add_to_df_cis_or_trans(df_gene: pd.DataFrame , gene_loc: pd.DataFrame ,genotypes_df: pd.DataFrame) -> pd.DataFrame:
+def add_to_df_cis_or_trans(df_gene: pd.DataFrame, gene_loc: pd.DataFrame, genotypes_df: pd.DataFrame) -> pd.DataFrame:
     range_size = 2*10**6    # 2Mbp
 
     try:
