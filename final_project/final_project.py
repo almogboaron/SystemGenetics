@@ -1,4 +1,4 @@
-from ex2.hw2_208273672 import q_2_analysis, plot_q2_results
+from ex2.hw2_208273672 import q_2_analysis, plot_q2_results, generate_qtl_dict
 from ex3.ex3 import association_test, analyse_eQTL_dict
 import GEOparse
 import pandas as pd
@@ -181,6 +181,7 @@ def process_data(csv_file: str) -> pd.DataFrame:
     df = take_avg_on_multi_column_breeds(df)
 
     # Remove rows with low maximal value
+    # Todo: view distibution of max values to help choose better threshold
     max_values = df.iloc[:, 1:].max(axis=1)  # Assuming expression columns start from the second column
     percentile_threshold = 90  # means we take the upper 10% of values
     value_threshold = np.percentile(max_values, percentile_threshold)
@@ -216,8 +217,8 @@ def pre_process_raw_dfs():
 
 
 def eqtl_generation():
-    liver_df = pd.read_csv("liver_ready.csv")
-    association_test(expression_df=liver_df, dropped_file_name="liver_eqtl_dict.pickle")
+    # liver_df = pd.read_csv("liver_ready.csv")
+    # association_test(expression_df=liver_df, dropped_file_name="liver_eqtl_dict.pickle")
 
     hypo_df = pd.read_csv("hypo_ready.csv")
     association_test(expression_df=hypo_df, dropped_file_name="hypo_eqtl_dict.pickle")
@@ -294,8 +295,61 @@ def qtl_generation():
     # plot_q2_results("muscle_weight.csv", "muscle weight")
 
     # Idan's phenotype
-    q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
-    plot_q2_results("idan_phen.csv", "idan_phen")
+    # q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
+    # plot_q2_results("idan_phen.csv", "idan_phen")
+
+    phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
+    generate_qtl_dict(phenotypes_ids, "genotypes.xls", "phenotypes.xls")
+
+
+def revert_dict_get_snp_keys(genes_to_snps: dict) -> dict:
+    snp_to_genes = {}
+    for gene, df in genes_to_snps.items():
+        unique_snps = df['Locus'].unique()
+        for snp in unique_snps:
+            snp_to_genes[snp] = snp_to_genes.get(snp, []).append(gene)
+    return snp_to_genes
+
+def compare_qtl_vs_eqtl(gene_to_snp: dict, phenotype_to_snp: dict):
+    snp_to_genes = revert_dict_get_snp_keys(gene_to_snp)
+    snp_to_phenotype = revert_dict_get_snp_keys(phenotype_to_snp)
+
+    snps_affect_both = {}
+    snps_only_affect_gene_expression = {}
+    for snp, genes_ls in snp_to_genes.items():
+        if snp in snp_to_phenotype:
+            print(f"Found SNP: {snp} that affects gene expression and phenotype")
+            snps_affect_both[snp] = [genes_ls, snp_to_phenotype[snp]]
+        else:
+            snps_only_affect_gene_expression[snp] = genes_ls
+
+    snps_affect_only_phenotype = {}
+    for snp, phenotype in snp_to_phenotype.items():
+        if snp not in snp_to_genes:
+            snps_affect_only_phenotype[snp] = phenotype
+
+    print(f"Number of SNPs affect both gene expression and phenotye: {len(snps_affect_both)}")
+    print(f"SNPs affect both: {snps_affect_both}")
+    print()
+    print(f"Number of SNPs affect only gene expression: {len(snps_only_affect_gene_expression)}")
+    print(f"Number of SNPs affect only phenotype: {len(snps_affect_only_phenotype)}")
+
+
+def combine_results():
+    with open("liver_eqtl_dict.pickle", 'rb') as f:
+        liver_eqtl_dict = pickle.load(f)
+
+    # with open("hypo_eqtl_dict.pickle", 'rb') as f:
+    #     hypo_eqtl_dict = pickle.load(f)
+
+    with open("phenotypes_qtl_dict.pickle", 'rb') as f:
+        phenotypes_qtl_dict = pickle.load(f)
+
+    print("Comparing eQTLs and QTLs for liver")
+    compare_qtl_vs_eqtl(liver_eqtl_dict, phenotypes_qtl_dict)
+
+    print("Comparing eQTLs and QTLs for hypo")
+    compare_qtl_vs_eqtl(hypo_eqtl_dict, phenotypes_qtl_dict)
 
 
 def correct_parsing():
@@ -353,5 +407,7 @@ if __name__ == '__main__':
     # generate_working_dfs()
     # pre_process_raw_dfs()
     # eqtl_analysis()
-    qtl_generation()
+    # qtl_generation()
+    # combine_results()
+    eqtl_generation()
     pass
