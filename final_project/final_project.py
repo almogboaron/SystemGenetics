@@ -441,14 +441,15 @@ def likelihood_of_models(df: pd.DataFrame):
     # Correlatien Coeff
     correlation_coefficient = df['R'].corr(df['C'])
 
-    e_R = lambda c: mew_R + (correlation_coefficient * teta_R / teta_C) * (c - mew_C)
-    var_R = (teta_R ** 2) * (1 - correlation_coefficient**2)
+    e_C = lambda r: mew_C + (correlation_coefficient * teta_C / teta_R) * (r - mew_R)
+    var_C = (teta_C ** 2) * (1 - correlation_coefficient**2)
+
 
     # Probabilities Calculations:
     df_0["R/L"] = df_0["R"].apply(lambda x: norm.pdf(x, mew_0R, teta_0R))
     df_1["R/L"] = df_1["R"].apply(lambda x: norm.pdf(x, mew_1R, teta_1R))
     df["P(R/L)"] = pd.concat([df_0["R/L"], df_1["R/L"]])
-    df["P(C/R)"] = df["C"].apply(lambda c: norm.pdf(c, e_R(c), var_R))
+    df["P(C/R)"] = df["R"].apply(lambda r: norm.pdf(r, e_C(r), var_C))
 
     # Calculate Likelihood for each indevidual:
     df["Likelihood_vals_model1"] = 0.5 * df["P(R/L)"] * df["P(C/R)"]
@@ -461,14 +462,14 @@ def likelihood_of_models(df: pd.DataFrame):
     mew_1C = df_1["C"].mean()
     teta_1C = df_1["C"].std()
 
-    e_C = lambda r: mew_C + (correlation_coefficient * teta_C / teta_R) * (r - mew_R)
-    var_C = (teta_C ** 2) * (1 - correlation_coefficient**2)
+    e_R = lambda c: mew_R + (correlation_coefficient * teta_R / teta_C) * (c - mew_C)
+    var_R = (teta_R ** 2) * (1 - correlation_coefficient**2)
 
     # Probabilities Calculations:
     df_0["C/L"] = df_0["C"].apply(lambda x: norm.pdf(x, mew_0C, teta_0C))
     df_1["C/L"] = df_1["C"].apply(lambda x: norm.pdf(x, mew_1C, teta_1C))
     df["P(C/L)"] = pd.concat([df_0["C/L"], df_1["C/L"]])
-    df["P(R/C)"] = df["R"].apply(lambda r: norm.pdf(r, e_R(r), var_R))
+    df["P(R/C)"] = df["C"].apply(lambda c: norm.pdf(c, e_R(c), var_R))
 
     # Calculate Likelihood for each indevidual:
     df["Likelihood_vals_model2"] = 0.5 * df["P(C/L)"] * df["P(R/C)"]
@@ -537,11 +538,12 @@ def analyze_causality():
         df = Df_For_Triplet(tri, "liver")
         data_lr = likelihood_of_models(df)
         tri_row.extend(data_lr)
-        permutations_lr = permutation_test(df, num_permutations=100)
-        p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
-        p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
-        tri_row.extend([p_value_eyal,p_value])
-        liver_df.loc[len(liver_df.index)] = tri_row
+        if (tri_row[6] > 1.5):
+            permutations_lr = permutation_test(df, num_permutations=100)
+            p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
+            p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
+            tri_row.extend([p_value_eyal, p_value])
+            liver_df.loc[len(liver_df.index)] = tri_row
 
     liver_df.to_csv("Liver_analyze_causality")
 
@@ -554,11 +556,13 @@ def analyze_causality():
         df = Df_For_Triplet(tri,"hypo")
         data_lr = likelihood_of_models(df)
         tri_row.extend(data_lr)
-        permutations_lr = permutation_test(df, num_permutations=100)
-        p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
-        p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
-        tri_row.extend([p_value_eyal,p_value])
-        hypo_df.loc[len(hypo_df.index)] = tri_row
+        if (tri_row[3] > 1.5):
+            permutations_lr = permutation_test(df, num_permutations=100)
+            p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
+            p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
+            tri_row.extend([p_value_eyal,p_value])
+            hypo_df.loc[len(hypo_df.index)] = tri_row
+
 
     hypo_df.to_csv("Hypo_analyze_casuality")
 
