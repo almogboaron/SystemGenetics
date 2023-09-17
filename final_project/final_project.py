@@ -522,8 +522,6 @@ def analyze_causality():
 
 
 
-
-
 if __name__ == '__main__':
     # test_GEOparse()
     # parse_tables()
