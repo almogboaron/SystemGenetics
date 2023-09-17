@@ -442,7 +442,7 @@ def likelihood_of_models(df: pd.DataFrame):
     correlation_coefficient = df['R'].corr(df['C'])
 
     e_R = lambda c: mew_R + (correlation_coefficient * teta_R / teta_C) * (c - mew_C)
-    var_R = (teta_R ** 2) * (1 - correlation_coefficient) ** 2
+    var_R = (teta_R ** 2) * (1 - correlation_coefficient**2)
 
     # Probabilities Calculations:
     df_0["R/L"] = df_0["R"].apply(lambda x: norm.pdf(x, mew_0R, teta_0R))
@@ -462,7 +462,7 @@ def likelihood_of_models(df: pd.DataFrame):
     teta_1C = df_1["C"].std()
 
     e_C = lambda r: mew_C + (correlation_coefficient * teta_C / teta_R) * (r - mew_R)
-    var_C = (teta_C ** 2) * (1 - correlation_coefficient) ** 2
+    var_C = (teta_C ** 2) * (1 - correlation_coefficient**2)
 
     # Probabilities Calculations:
     df_0["C/L"] = df_0["C"].apply(lambda x: norm.pdf(x, mew_0C, teta_0C))
