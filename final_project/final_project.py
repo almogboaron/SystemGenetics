@@ -7,12 +7,10 @@ import pickle
 from tqdm import tqdm
 from math import log10
 from math import fabs
+from scipy.stats import norm
 
 
-P_VALUE_THREASHOLD = 7.273
-
-
-def get_gse(gse_name: str) ->  GEOparse.GEOTypes.GSE:
+def get_gse(gse_name: str) -> GEOparse.GEOTypes.GSE:
     gse = GEOparse.get_GEO(geo=gse_name, annotate_gpl=True, include_data=True)
     return gse
 
@@ -351,25 +349,26 @@ def combine_results():
     snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(hypo_eqtls, phenotypes_qtls)
 
 
-def Create_Triplets(snp_pheno_dict:dict ,snp_gene_dict:dict):
+def Create_Triplets(snp_pheno_dict: dict, snp_gene_dict: dict):
     geno_df = pd.read_excel(r"genotypes.xls")
     geno_df.set_index('Locus', inplace=True)
     set_triplets = set()
     for snp_pheno in snp_pheno_dict.keys():
         for pheno in snp_pheno_dict[snp_pheno]:
             for snp_gene in snp_gene_dict.keys():
-                if((geno_df.loc[snp_pheno,"Chr_Build37"] == geno_df.loc[snp_gene,"Chr_Build37"]) and
-                        fabs((geno_df["Build37_position"].loc[snp_pheno], - geno_df.loc["Build37_position"].loc[snp_gene])) < 2*10**6):
-                            for gene in snp_gene_dict[snp_gene]:
-                                set_triplets.add(np.array([snp_pheno, gene, pheno]))
+                if ((geno_df.loc[snp_pheno, "Chr_Build37"] == geno_df.loc[snp_gene, "Chr_Build37"]) and
+                        fabs((geno_df["Build37_position"].loc[snp_pheno],
+                              - geno_df.loc["Build37_position"].loc[snp_gene])) < 2 * 10 ** 6):
+                    for gene in snp_gene_dict[snp_gene]:
+                        set_triplets.add(np.array([snp_pheno, gene, pheno]))
 
     return set_triplets
 
 
-def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
-    if(database=="hypo"):
+def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
+    if (database == "hypo"):
         expression_df = pd.read_csv(r"hypo_ready.csv")
-    if(database=="liver"):
+    if (database == "liver"):
         expression_df = pd.read_csv(r"liver_ready.csv")
 
     genotype_df = pd.read_excel(r"genotypes.xls", header=1)
@@ -387,25 +386,94 @@ def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
 
 
     df_res.replace({'B': 0, 'D': 1}, inplace=True)
-    df_res.index = [r"B=0\D=1"]
 
     # Get expression row with data
     expression_row = expression_df.loc[expression_df['data'] == triplet[1]]
     expression_row = expression_row.drop(expression_row.columns[:2], axis=1)
-    expression_row.index = ["R"]
 
     # Intesect columns and add to df_res:
     common_columns = df_res.columns.intersection(expression_row.columns)
-    df_res = pd.concat([df_res[common_columns],expression_row[common_columns]],ignore_index=True)
+    df_res = pd.concat([df_res[common_columns], expression_row[common_columns]], ignore_index=True)
 
     # Get Phenotype row with data
     phenotype_row = phenotype_df.loc[phenotype_df['ID_FOR_CHECK'] == int(triplet[2])]
     phenotype_row = phenotype_row.drop(phenotype_row.columns[:8], axis=1)
-    phenotype_row.index = ["C"]
 
     # Intesect columns and add to df_res:
     common_columns = df_res.columns.intersection(phenotype_row.columns)
-    df_res = pd.concat([df_res[common_columns],phenotype_row[common_columns]],ignore_index=True)
+    df_res = pd.concat([df_res[common_columns], phenotype_row[common_columns]], ignore_index=True)
+    df_res.dropna(axis=1, inplace=True)
+    df_res.index = ["L", "R", "C"]
+    return df_res.transpose().sort_values(by="L")
+
+
+def likelihood_of_models(df: pd.DataFrame):
+    df_0 = df[df["L"] == float(0)]
+    df_1 = df[df["L"] == float(1)]
+
+    # Model 1:
+    # Calculate Avarge and Standart Deviation
+    # R/L
+    mew_0R = df_0["R"].mean()
+    teta_0R = df_0["R"].std()
+    mew_1R = df_1["R"].mean()
+    teta_1R = df_1["R"].std()
+
+    # R
+    mew_R = df["R"].mean()
+    teta_R = df["R"].std()
+
+    # C
+    mew_C = df["C"].mean()
+    teta_C = df["C"].std()
+
+    # Correlatien Coeff
+    correlation_coefficient = df['R'].corr(df['C'])
+
+    e_R = lambda c: mew_R + (correlation_coefficient * teta_R / teta_C) * (c - mew_C)
+    var_R = (teta_R ** 2) * (1 - correlation_coefficient) ** 2
+
+    # Probabilities Calculations:
+    df_0["R/L"] = df_0["R"].apply(lambda x: norm.pdf(x, mew_0R, teta_0R))
+    df_1["R/L"] = df_1["R"].apply(lambda x: norm.pdf(x, mew_1R, teta_1R))
+    df["P(R/L)"] = pd.concat([df_0["R/L"], df_1["R/L"]])
+    df["P(C/R)"] = df["C"].apply(lambda c: norm.pdf(c, e_R(c), var_R))
+
+    # Calculate Likelihood for each indevidual:
+    df["Likelihood_vals_model1"] = 0.5 * df["P(R/L)"] * df["P(C/R)"]
+    l_model1 = df["Likelihood_vals_model1"].prod()
+
+    # Model 2:
+    # C/L
+    mew_0C = df_0["C"].mean()
+    teta_0C = df_0["C"].std()
+    mew_1C = df_1["C"].mean()
+    teta_1C = df_1["C"].std()
+
+    e_C = lambda r: mew_C + (correlation_coefficient * teta_C / teta_R) * (r - mew_R)
+    var_C = (teta_C ** 2) * (1 - correlation_coefficient) ** 2
+
+    # Probabilities Calculations:
+    df_0["C/L"] = df_0["C"].apply(lambda x: norm.pdf(x, mew_0C, teta_0C))
+    df_1["C/L"] = df_1["C"].apply(lambda x: norm.pdf(x, mew_1C, teta_1C))
+    df["P(C/L)"] = pd.concat([df_0["C/L"], df_1["C/L"]])
+    df["P(R/C)"] = df["R"].apply(lambda r: norm.pdf(r, e_R(r), var_R))
+
+    # Calculate Likelihood for each indevidual:
+    df["Likelihood_vals_model2"] = 0.5 * df["P(C/L)"] * df["P(R/C)"]
+    l_model2 = df["Likelihood_vals_model2"].prod()
+
+    # Model3
+    df["Likelihood_vals_model3"] = 0.5 * df["P(C/L)"] * df["P(R/L)"]
+    l_model3 = df["Likelihood_vals_model3"].prod()
+
+    model_arr = [l_model1, l_model2, l_model3]
+    model_arr.sort(reverse=True)
+    LR = "Check Array"
+    if (model_arr[1] != 0):
+        LR = model_arr[0] / model_arr[1]
+
+    return [l_model1, l_model2, l_model3, LR]
 
 
 def permutation_test(base_df: pd.DataFrame, num_permutations: int = 100):
@@ -463,9 +531,9 @@ if __name__ == '__main__':
     # generate_working_dfs()
     # pre_process_raw_dfs()
     # eqtl_generation()
-    # eqtl_analysis(tissue="liver")
-    # eqtl_analysis(tissue="hypo")
-    eqtl_analysis(file_path="phenotypes_qtl_dict.pickle")
-    # qtl_generation()
+    # eqtl_analysis()
+    #qtl_generation()
     # combine_results()
+    #likelihood_of_models(Df_For_Triplet(["rs3722996", "Gm20472", 10], "hypo"))
+
     pass
