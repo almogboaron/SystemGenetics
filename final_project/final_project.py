@@ -408,6 +408,54 @@ def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
     df_res = pd.concat([df_res[common_columns],phenotype_row[common_columns]],ignore_index=True)
 
 
+def permutation_test(base_df: pd.DataFrame, num_permutations: int = 100):
+    res_dict = {}
+    print("calculating probabilities for permutations")
+    for i in tqdm(range(num_permutations)):
+        shuffled_R = np.random.permutation(base_df['R'])
+        shuffled_C = np.random.permutation(base_df['C'])
+
+        shuffled_df = base_df.copy()
+        shuffled_df['R'] = shuffled_R
+        shuffled_df['C'] = shuffled_C
+
+        probability = calculate_probabilities_for_df(shuffled_df)
+        res_dict[i] = probability
+
+    res_df = pd.DataFrame({"permutation": res_dict.keys(), "probability": res_dict.values()})
+    return res_df
+
+
+def check_triplet_significance(triplet: np.array, lr: float, permutations_lr: pd.DataFrame):
+    mean_permutation_LR = np.mean(permutations_lr)  # Mean of permutation LR_ratios
+    std_permutation_LR = np.std(permutations_lr)  # Standard deviation of permutation LR_ratios
+    z_score = (lr - mean_permutation_LR) / std_permutation_LR
+
+    # Calculate the p-value using the CDF of the standard normal distribution
+    p_value = 1 - norm.cdf(z_score)
+
+
+
+def analyze_causality():
+    with open("snp_pheno_dict.pickle", 'rb') as f:
+        snp_pheno_dict = pickle.load(f)
+
+    with open("snp_liver_ge_dict.pickle", 'rb') as f:
+        snp_liver_ge_dict = pickle.load(f)
+
+    with open("snp_hypo_ge_dict.pickle", 'rb') as f:
+        snp_hypo_ge_dict = pickle.load(f)
+
+    triplets_set = Create_Triplets(snp_pheno_dict, snp_liver_ge_dict)
+    for t in triplets_set:
+        df = Df_For_Triplet(t, "liver")
+        data_lr = calculate_probabilities_for_df(df)
+        permutations_lr = permutation_test(df, num_permutations=100)
+
+
+
+
+
 if __name__ == '__main__':
     # test_GEOparse()
     # parse_tables()
