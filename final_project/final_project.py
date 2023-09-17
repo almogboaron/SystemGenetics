@@ -6,7 +6,8 @@ import numpy as np
 import pickle
 from tqdm import tqdm
 from math import log10
-from math import fabs
+from math import fabs,inf
+from scipy.stats import norm
 
 
 P_VALUE_THREASHOLD = 7.273
@@ -359,24 +360,23 @@ def combine_results():
     with open("snp_pheno_dict.pickle", 'wb') as f:
         pickle.dump(snp_to_phenotypes, f)
 
-
+# We use :
 def Create_Triplets(snp_pheno_dict: dict, snp_gene_dict: dict):
-    geno_df = pd.read_excel(r"genotypes.xls")
+    geno_df = pd.read_excel(r"genotypes.xls",header = 1)
     geno_df.set_index('Locus', inplace=True)
     set_triplets = set()
     for snp_pheno in snp_pheno_dict.keys():
         for pheno in snp_pheno_dict[snp_pheno]:
             for snp_gene in snp_gene_dict.keys():
                 if ((geno_df.loc[snp_pheno, "Chr_Build37"] == geno_df.loc[snp_gene, "Chr_Build37"]) and
-                        fabs((geno_df["Build37_position"].loc[snp_pheno],
-                              - geno_df.loc["Build37_position"].loc[snp_gene])) < 2 * 10 ** 6):
+                        fabs((float(geno_df["Build37_position"].loc[snp_pheno]) - float(geno_df["Build37_position"].loc[snp_gene]))) < 2 * 10 ** 6):
                     for gene in snp_gene_dict[snp_gene]:
-                        set_triplets.add(np.array([snp_pheno, gene, pheno]))
+                        set_triplets.add((snp_pheno, gene, pheno))
 
     return set_triplets
 
 
-def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
+def Df_For_Triplet(triplet: tuple, database: str) -> pd.DataFrame:
     if (database == "hypo"):
         expression_df = pd.read_csv(r"hypo_ready.csv")
     if (database == "liver"):
@@ -419,8 +419,8 @@ def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
 
 
 def likelihood_of_models(df: pd.DataFrame):
-    df_0 = df[df["L"] == float(0)]
-    df_1 = df[df["L"] == float(1)]
+    df_0 = df[df["L"] == float(0)].copy()
+    df_1 = df[df["L"] == float(1)].copy()
 
     # Model 1:
     # Calculate Avarge and Standart Deviation
@@ -480,17 +480,17 @@ def likelihood_of_models(df: pd.DataFrame):
 
     model_arr = [l_model1, l_model2, l_model3]
     model_arr.sort(reverse=True)
-    LR = "Check Array"
     if (model_arr[1] != 0):
         LR = model_arr[0] / model_arr[1]
-
+    else :
+        LR = 10**(-307)
     return [l_model1, l_model2, l_model3, LR]
 
 
 def permutation_test(base_df: pd.DataFrame, num_permutations: int = 100):
     res_dict = {}
     print("calculating probabilities for permutations")
-    for i in tqdm(range(num_permutations)):
+    for i in range(num_permutations):
         shuffled_R = np.random.permutation(base_df['R'])
         shuffled_C = np.random.permutation(base_df['C'])
 
@@ -498,23 +498,27 @@ def permutation_test(base_df: pd.DataFrame, num_permutations: int = 100):
         shuffled_df['R'] = shuffled_R
         shuffled_df['C'] = shuffled_C
 
-        probability = calculate_probabilities_for_df(shuffled_df)
-        res_dict[i] = probability
+        Lr = likelihood_of_models(shuffled_df)[3]
+        res_dict[i] = Lr
 
-    res_df = pd.DataFrame({"permutation": res_dict.keys(), "probability": res_dict.values()})
+    res_df = pd.DataFrame({"permutation": res_dict.keys(), "LR": res_dict.values()})
     return res_df
 
 
-def check_triplet_significance(triplet: np.array, lr: float, permutations_lr: pd.DataFrame):
-    mean_permutation_LR = np.mean(permutations_lr)  # Mean of permutation LR_ratios
-    std_permutation_LR = np.std(permutations_lr)  # Standard deviation of permutation LR_ratios
-    z_score = (lr - mean_permutation_LR) / std_permutation_LR
+def check_triplet_significance( lr: list, permutations_lr: pd.DataFrame):
+    mean_permutation_LR = permutations_lr["LR"].mean()  # Mean of permutation LR_ratios
+    std_permutation_LR = permutations_lr["LR"].std()  # Standard deviation of permutation LR_ratios
+    z_score = (lr[3] - mean_permutation_LR) / std_permutation_LR
 
     # Calculate the p-value using the CDF of the standard normal distribution
     p_value = 1 - norm.cdf(z_score)
+    return p_value
 
 
 def analyze_causality():
+
+    phenotype_df = pd.read_excel(r"phenotypes.xls")
+
     with open("snp_pheno_dict.pickle", 'rb') as f:
         snp_pheno_dict = pickle.load(f)
 
@@ -525,14 +529,47 @@ def analyze_causality():
         snp_hypo_ge_dict = pickle.load(f)
 
     triplets_set = Create_Triplets(snp_pheno_dict, snp_liver_ge_dict)
-    for t in triplets_set:
-        df = Df_For_Triplet(t, "liver")
-        data_lr = calculate_probabilities_for_df(df)
+    columns = ["SNP", "Gene", "Phenotype", "Model 1", "Model 2", "Model 3", "LR", "pvalue_eyal","pvalue_simplistic"]
+    liver_df = pd.DataFrame(columns=columns)
+
+    for tri in tqdm(triplets_set):
+        tri_row = [tri[0],tri[1],phenotype_df["Phenotype"].loc[phenotype_df["ID_FOR_CHECK"] == tri[2]].values[0]]
+        df = Df_For_Triplet(tri, "liver")
+        data_lr = likelihood_of_models(df)
+        tri_row.extend(data_lr)
         permutations_lr = permutation_test(df, num_permutations=100)
+        p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
+        p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
+        tri_row.extend([p_value_eyal,p_value])
+        liver_df.loc[len(liver_df.index)] = tri_row
+
+    liver_df.to_csv("Liver_analyze_causality")
+
+    triplets_set = Create_Triplets(snp_pheno_dict, snp_hypo_ge_dict)
+    columns = ["SNP", "Gene", "Phenotype", "Model 1", "Model 2", "Model 3", "LR", "pvalue_eyal", "pvalue_simplistic"]
+    hypo_df = pd.DataFrame(columns=columns)
+
+    for tri in tqdm(triplets_set):
+        tri_row = [tri[0],tri[1],phenotype_df["Phenotype"].loc[phenotype_df["ID_FOR_CHECK"] == tri[2]].values[0]]
+        df = Df_For_Triplet(tri,"hypo")
+        data_lr = likelihood_of_models(df)
+        tri_row.extend(data_lr)
+        permutations_lr = permutation_test(df, num_permutations=100)
+        p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
+        p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
+        tri_row.extend([p_value_eyal,p_value])
+        hypo_df.loc[len(hypo_df.index)] = tri_row
+
+    hypo_df.to_csv("Hypo_analyze_casuality")
+
+
+
+
 
 
 
 if __name__ == '__main__':
+
     # test_GEOparse()
     # parse_tables()
     # correct_parsing()
@@ -545,4 +582,3 @@ if __name__ == '__main__':
     # qtl_generation()
     # combine_results()
     analyze_causality()
-    pass
