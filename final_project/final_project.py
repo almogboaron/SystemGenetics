@@ -10,7 +10,8 @@ from math import fabs
 from scipy.stats import norm
 
 
-def get_gse(gse_name: str) -> GEOparse.GEOTypes.GSE:
+
+def get_gse(gse_name: str) ->  GEOparse.GEOTypes.GSE:
     gse = GEOparse.get_GEO(geo=gse_name, annotate_gpl=True, include_data=True)
     return gse
 
@@ -349,26 +350,25 @@ def combine_results():
     snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(hypo_eqtls, phenotypes_qtls)
 
 
-def Create_Triplets(snp_pheno_dict: dict, snp_gene_dict: dict):
+def Create_Triplets(snp_pheno_dict:dict ,snp_gene_dict:dict):
     geno_df = pd.read_excel(r"genotypes.xls")
     geno_df.set_index('Locus', inplace=True)
     set_triplets = set()
     for snp_pheno in snp_pheno_dict.keys():
         for pheno in snp_pheno_dict[snp_pheno]:
             for snp_gene in snp_gene_dict.keys():
-                if ((geno_df.loc[snp_pheno, "Chr_Build37"] == geno_df.loc[snp_gene, "Chr_Build37"]) and
-                        fabs((geno_df["Build37_position"].loc[snp_pheno],
-                              - geno_df.loc["Build37_position"].loc[snp_gene])) < 2 * 10 ** 6):
-                    for gene in snp_gene_dict[snp_gene]:
-                        set_triplets.add(np.array([snp_pheno, gene, pheno]))
+                if((geno_df.loc[snp_pheno,"Chr_Build37"] == geno_df.loc[snp_gene,"Chr_Build37"]) and
+                        fabs((geno_df["Build37_position"].loc[snp_pheno], - geno_df.loc["Build37_position"].loc[snp_gene])) < 2*10**6):
+                            for gene in snp_gene_dict[snp_gene]:
+                                set_triplets.add(np.array([snp_pheno, gene, pheno]))
 
     return set_triplets
 
 
-def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
-    if (database == "hypo"):
+def Df_For_Triplet(triplet:np.array,database:str)->pd.DataFrame:
+    if(database=="hypo"):
         expression_df = pd.read_csv(r"hypo_ready.csv")
-    if (database == "liver"):
+    if(database=="liver"):
         expression_df = pd.read_csv(r"liver_ready.csv")
 
     genotype_df = pd.read_excel(r"genotypes.xls", header=1)
@@ -386,6 +386,7 @@ def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
 
 
     df_res.replace({'B': 0, 'D': 1}, inplace=True)
+    df_res.index = [r"B=0\D=1"]
 
     # Get expression row with data
     expression_row = expression_df.loc[expression_df['data'] == triplet[1]]
@@ -529,9 +530,9 @@ if __name__ == '__main__':
     # generate_working_dfs()
     # pre_process_raw_dfs()
     # eqtl_generation()
-    # eqtl_analysis()
-    #qtl_generation()
+    # eqtl_analysis(tissue="liver")
+    # eqtl_analysis(tissue="hypo")
+    eqtl_analysis(file_path="phenotypes_qtl_dict.pickle")
+    # qtl_generation()
     # combine_results()
-    #likelihood_of_models(Df_For_Triplet(["rs3722996", "Gm20472", 10], "hypo"))
-
     pass
