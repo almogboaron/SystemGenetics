@@ -543,5 +543,6 @@ if __name__ == '__main__':
     # eqtl_analysis(tissue="hypo")
     # eqtl_analysis(file_path="phenotypes_qtl_dict.pickle")
     # qtl_generation()
-    combine_results()
+    # combine_results()
+    analyze_causality()
     pass
