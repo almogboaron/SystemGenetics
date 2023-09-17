@@ -355,6 +355,12 @@ def q_2_analysis(genotypes_file_path, phenotypes_file_path, wanted_phenotype_id,
                 gn_filtered_breeds[br] = r[br]
         snp_to_gn[snp] = gn_filtered_breeds
 
+    # clean zero variance SNPs (all B or all D)
+    for snp in list(snp_to_gn.keys()):
+        allels = set(snp_to_gn[snp].values())
+        if len(allels) == 1:
+            del snp_to_gn[snp]
+
     # run regression on each SNP and save the result which is -log(p-value)
     snp_to_res = {}     # res is -log(p-value)
     for snp in snp_to_gn:
