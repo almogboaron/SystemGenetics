@@ -96,6 +96,7 @@ def parse_gse(gse: GEOparse.GEOTypes.GSE, gse_type: str) -> pd.DataFrame:
     return full_df
 
 
+
 def parse_soft_file(file_path: str) -> pd.DataFrame:
     with open(file_path, "r") as f:
         data = f.readlines()
@@ -253,20 +254,27 @@ def analyze_genes_snps(genes_to_snps: dict):
     return result_df
 
 
-P_VALUE_THREASHOLD = 7.273
+def eqtl_analysis(tissue="liver", file_path=None):
+    if file_path:
+        print(f"analyzing {file_path}")
+        with open(file_path, 'rb') as f:
+            eqtl_dict = pickle.load(f)
 
-
-def eqtl_analysis():
-    # open csv for gene boundries
-    MGI_Coordinates_df = pd.read_csv("MGI_Coordinates.Build37.rpt.txt", sep="\t")
-    genotype_df = pd.read_excel("genotypes.xls", header=1)[["Locus", "Chr_Build37", "Build37_position"]]
-
-    # open pickel file (with genes to snps and pvalues)
-    with open("liver_eqtl_dict.pickle", 'rb') as f:
-        eqtl_dict = pickle.load(f)
+    else:
+        print(f"analyzing {tissue} eQTLS")
+        with open(f"{tissue}_eqtl_dict.pickle", 'rb') as f:
+            eqtl_dict = pickle.load(f)
 
     # filter SNPs from each gene
-    genes_relevant_snps = filter_weak_associated_genes(eqtl_dict, P_VALUE_THREASHOLD)
+    genes_relevant_snps = filter_weak_associated_genes(eqtl_dict, -log10(0.05))
+    print(f"Number of unique genes / phenotypes with significant SNPs: {len(genes_relevant_snps)}")
+    if file_path:
+        print(f"Phenotypes with significant SNPs: {list(genes_relevant_snps.keys())}")
+    snp_counts = [len(df) for k, df in genes_relevant_snps.items()]
+    print(f"Avg number of significant SNPs per gene / phenotype: {np.average(snp_counts)}")
+    print(f"Max number of significant SNPs per gene / phenotype: {np.max(snp_counts)}")
+    print(f"Min number of significant SNPs per gene / phenotype: {np.min(snp_counts)}")
+
     res = analyze_genes_snps(genes_relevant_snps)
     print(f"Number of significant SNPs: {len(res)}")
     print(f"Maximum genes number associated by one SNP: {res['Gene_Count'].max()}")
@@ -274,37 +282,11 @@ def eqtl_analysis():
 
 
 def qtl_generation():
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 147, "longevity.csv")
-    # plot_q2_results("longevity.csv", "longevity")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 114, "CAFC.csv")
-    # plot_q2_results("CAFC.csv", "CAFC")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 225, "t_cell_decline.csv")
-    # plot_q2_results("t_cell_decline.csv", "T Cell Decline")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 231, "Thymocyte_count.csv")
-    # plot_q2_results("Thymocyte_count.csv", "Thymocyte Count")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 640, "Polyglucosan_bodies_hippocampus.csv")
-    # plot_q2_results("Polyglucosan_bodies_hippocampus.csv", "Polyglucosan bodies in the hippocampus")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 2365, "Bone_mineral_density.csv")
-    # plot_q2_results("Bone_mineral_density.csv", "Bone mineral density")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 2258, "Glucose_after_4_hour_fast.csv")
-    # plot_q2_results("Glucose_after_4_hour_fast.csv", "Glucose after 4 hour fast")
-    #
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 685, "muscle_weight.csv")
-    # plot_q2_results("muscle_weight.csv", "muscle weight")
-
-    # Idan's phenotype
-    # q_2_analysis("genotypes.xls", "phenotypes.xls", 787, "idan_phen.csv")
-    # plot_q2_results("idan_phen.csv", "idan_phen")
-
+    # old phenotypes attempt
     # phenotypes_ids = [147, 114, 225, 231, 640, 2365, 2258, 685]
-    phenotypes_ids = [260, 148, 2, 355, 356, 360, 1703, 684, 701, 703, 1719, 1822, 1880, 1885, 1953, 1954, 2010, 2034,
-                      2177, 2179, 2195, 114, 142, 159, 160]
+
+    # new chosen phenotypes
+    phenotypes_ids = [260, 148, 2, 355, 356, 360, 1703, 684, 701, 703, 1719, 1822, 1880, 1885, 1953, 1954, 2010, 2034, 2156, 2177, 2179, 2195, 114, 142, 159, 160]
     generate_qtl_dict(phenotypes_ids, "genotypes.xls", "phenotypes.xls")
 
 
@@ -326,7 +308,7 @@ def compare_qtl_vs_eqtl(gene_to_snp: dict, phenotype_to_snp: dict):
     snps_only_affect_gene_expression = {}
     for snp, genes_ls in snp_to_genes.items():
         if snp in snp_to_phenotype:
-            print(f"Found SNP: {snp} that affects gene expression and phenotype")
+            # print(f"Found SNP: {snp} that affects gene expression and phenotype")
             snps_affect_both[snp] = [genes_ls, snp_to_phenotype[snp]]
         else:
             snps_only_affect_gene_expression[snp] = genes_ls
@@ -354,9 +336,11 @@ def combine_results():
     with open("phenotypes_qtl_dict.pickle", 'rb') as f:
         phenotypes_qtl_dict = pickle.load(f)
 
+    phenotypes_qtls = filter_weak_associated_genes(phenotypes_qtl_dict, -log10(0.05))
+
     liver_eqtls = filter_weak_associated_genes(liver_eqtl_dict, -log10(0.05))
     hypo_eqtls = filter_weak_associated_genes(hypo_eqtl_dict, -log10(0.05))
-    phenotypes_qtls = filter_weak_associated_genes(phenotypes_qtl_dict, -log10(0.1))
+
 
     print("Comparing eQTLs and QTLs for liver")
     snp_to_genes, snp_to_phenotypes = compare_qtl_vs_eqtl(liver_eqtls, phenotypes_qtls)
@@ -399,6 +383,7 @@ def Df_For_Triplet(triplet: np.array, database: str) -> pd.DataFrame:
 
     # Drop the identified columns
     df_res = df_res.drop(cols_to_drop, axis=1)
+
 
     df_res.replace({'B': 0, 'D': 1}, inplace=True)
 
@@ -499,8 +484,8 @@ if __name__ == '__main__':
     # pre_process_raw_dfs()
     # eqtl_generation()
     # eqtl_analysis()
-    # qtl_generation()
+    #qtl_generation()
     # combine_results()
-    likelihood_of_models(Df_For_Triplet(["rs3722996", "Gm20472", 10], "hypo"))
+    #likelihood_of_models(Df_For_Triplet(["rs3722996", "Gm20472", 10], "hypo"))
 
     pass
