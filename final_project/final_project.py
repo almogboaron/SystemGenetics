@@ -410,7 +410,7 @@ def Df_For_Triplet(triplet: tuple, database: str) -> pd.DataFrame:
 
     # Get Phenotype row with data
     phenotype_row = phenotype_df.loc[phenotype_df['ID_FOR_CHECK'] == int(triplet[2])]
-    phenotype_row = phenotype_row.drop(phenotype_row.columns[:8], axis=1)
+    phenotype_row = phenotype_row.drop(phenotype_row.columns[:7], axis=1)
 
     # Intesect columns and add to df_res:
     common_columns = df_res.columns.intersection(phenotype_row.columns)
@@ -529,6 +529,7 @@ def analyze_causality():
 
     with open("snp_hypo_ge_dict.pickle", 'rb') as f:
         snp_hypo_ge_dict = pickle.load(f)
+#
 
     triplets_set = Create_Triplets(snp_pheno_dict, snp_liver_ge_dict)
     columns = ["SNP", "Gene", "Phenotype", "Model 1", "Model 2", "Model 3", "LR", "pvalue_eyal","pvalue_simplistic"]
@@ -546,7 +547,8 @@ def analyze_causality():
             tri_row.extend([p_value_eyal, p_value])
             liver_df.loc[len(liver_df.index)] = tri_row
 
-    liver_df.to_csv("Liver_analyze_causality")
+    liver_df.to_csv("Liver_analyze_causality.csv")
+
 
     triplets_set = Create_Triplets(snp_pheno_dict, snp_hypo_ge_dict)
     columns = ["SNP", "Gene", "Phenotype", "Model 1", "Model 2", "Model 3", "LR", "pvalue_eyal", "pvalue_simplistic"]
@@ -557,16 +559,13 @@ def analyze_causality():
         df = Df_For_Triplet(tri,"hypo")
         data_lr = likelihood_of_models(df)
         tri_row.extend(data_lr)
-        if (tri_row[3] > 1.5):
+        if (tri_row[6] > 1.5):
             permutations_lr = permutation_test(df, num_permutations=100)
             p_value_eyal = check_triplet_significance(data_lr,permutations_lr)
             p_value = np.sum(data_lr[3] >= permutations_lr["LR"]) / len(permutations_lr["LR"])
             tri_row.extend([p_value_eyal,p_value])
             hypo_df.loc[len(hypo_df.index)] = tri_row
-
-
-    hypo_df.to_csv("Hypo_analyze_casuality")
-
+    hypo_df.to_csv("Hypo_analyze_casuality.csv")
 
 
 
