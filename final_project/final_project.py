@@ -1,3 +1,5 @@
+import math
+
 from ex2.hw2_208273672 import q_2_analysis, plot_q2_results, generate_qtl_dict
 from ex3.ex3 import association_test, analyse_eQTL_dict, filter_weak_associated_genes
 import GEOparse
@@ -442,14 +444,13 @@ def likelihood_of_models(df: pd.DataFrame):
     correlation_coefficient = df['R'].corr(df['C'])
 
     e_C = lambda r: mew_C + (correlation_coefficient * teta_C / teta_R) * (r - mew_R)
-    var_C = (teta_C ** 2) * (1 - correlation_coefficient**2)
-
+    var_C = math.sqrt((teta_C ** 2) * (1 - correlation_coefficient**2))
 
     # Probabilities Calculations:
     df_0["R/L"] = df_0["R"].apply(lambda x: norm.pdf(x, mew_0R, teta_0R))
     df_1["R/L"] = df_1["R"].apply(lambda x: norm.pdf(x, mew_1R, teta_1R))
     df["P(R/L)"] = pd.concat([df_0["R/L"], df_1["R/L"]])
-    df["P(C/R)"] = df["R"].apply(lambda r: norm.pdf(r, e_C(r), var_C))
+    df["P(C/R)"] = df.apply(lambda row: norm.pdf(row["C"], e_C(row["R"]), var_C),axis=1)
 
     # Calculate Likelihood for each indevidual:
     df["Likelihood_vals_model1"] = 0.5 * df["P(R/L)"] * df["P(C/R)"]
@@ -463,13 +464,13 @@ def likelihood_of_models(df: pd.DataFrame):
     teta_1C = df_1["C"].std()
 
     e_R = lambda c: mew_R + (correlation_coefficient * teta_R / teta_C) * (c - mew_C)
-    var_R = (teta_R ** 2) * (1 - correlation_coefficient**2)
+    var_R = math.sqrt((teta_R ** 2) * (1 - correlation_coefficient**2))
 
     # Probabilities Calculations:
     df_0["C/L"] = df_0["C"].apply(lambda x: norm.pdf(x, mew_0C, teta_0C))
     df_1["C/L"] = df_1["C"].apply(lambda x: norm.pdf(x, mew_1C, teta_1C))
     df["P(C/L)"] = pd.concat([df_0["C/L"], df_1["C/L"]])
-    df["P(R/C)"] = df["C"].apply(lambda c: norm.pdf(c, e_R(c), var_R))
+    df["P(R/C)"] = df.apply(lambda row: norm.pdf(row["R"], e_R(row["C"]), var_R) ,axis=1)
 
     # Calculate Likelihood for each indevidual:
     df["Likelihood_vals_model2"] = 0.5 * df["P(C/L)"] * df["P(R/C)"]
